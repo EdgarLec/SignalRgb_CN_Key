@@ -39,6 +39,7 @@ log:添加Mchose ACE68 Air支持
 let vKeyNames = [];
 let vKeys = [];
 let vKeyPositions = [];
+let boardModel = "Mchose_ACE68_Air"; // Défault pour VID:41E4 PID:2120
 
 /*
 
@@ -276,6 +277,11 @@ const boards =
 	},
 };
 
+// Initialisation par défaut pour Mchose ACE68 Air (VID:41E4 PID:2120)
+vKeyNames = boards["Mchose_ACE68_Air"].vKeyNames;
+vKeyPositions = boards["Mchose_ACE68_Air"].vKeyPositions;
+vKeys = boards["Mchose_ACE68_Air"].vKeys;
+
 
 
 /*
@@ -351,10 +357,17 @@ export function onboardModelChanged ()
 
 export function Initialize() 
 {
-	device.log("[INIT] Initialisation Mchose ACE68 Air (VID:41E4 PID:2120)");
+	device.log("[INIT] Début d'initialisation Mchose ACE68 Air (VID:41E4 PID:2120)");
 	
 	// Forcer le modèle Mchose ACE68 Air pour ce VID/PID
 	boardModel = "Mchose_ACE68_Air";
+	device.log(`[INIT] boardModel défini à: "${boardModel}"`);
+	
+	// Vérifier que la configuration existe
+	if(!boards[boardModel]) {
+		device.log(`[INIT ERROR] Configuration non trouvée pour: ${boardModel}`);
+		return;
+	}
 	
 	vKeyNames = boards[boardModel].vKeyNames;
 	vKeyPositions = boards[boardModel].vKeyPositions;
@@ -365,13 +378,16 @@ export function Initialize()
 	device.setSize(boards[boardModel].size);
 	device.log(`✓ Modèle forcé: ${boards[boardModel].name} - ${vKeyNames.length} touches configurées`);
 	device.log(`✓ Utilisation exclusive de device.write() pour ce périphérique`);
+	device.log(`[INIT] Initialisation terminée. boardModel = "${boardModel}"`);
 }
 
 
 export function Render() 
 {
+	device.log(`[RENDER] boardModel = "${boardModel}"`);
+	
 	if(!boardModel || boardModel !== "Mchose_ACE68_Air") {
-		device.log("[ERROR] Modèle incorrect ou non initialisé");
+		device.log(`[ERROR] Modèle incorrect ou non initialisé. Expected: "Mchose_ACE68_Air", Got: "${boardModel}"`);
 		return;
 	}
 	
