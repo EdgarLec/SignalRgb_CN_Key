@@ -424,5 +424,33 @@ export function Shutdown()
 
 export function Validate(endpoint) 
 {
-	return endpoint.interface === 1 && endpoint.usage === 0x0001 && endpoint.usage_page === 0xff00;
+	device.log(`[VALIDATE] Testing interface=${endpoint.interface}, usage=0x${endpoint.usage.toString(16).padStart(4, '0')}, usage_page=0x${endpoint.usage_page.toString(16).padStart(4, '0')}, collection=${endpoint.collection}`);
+	
+	// Pour Mchose ACE68 Air avec VID:41E4 PID:2120
+	// Interface 0: Clavier standard (usage 0x0006, usage_page 0x0001)
+	if(endpoint.interface === 0 && endpoint.usage === 0x0006 && endpoint.usage_page === 0x0001) {
+		device.log("[VALIDATE] ✓ Interface 0 acceptée (clavier standard)");
+		return true;
+	}
+	
+	// Interface 1: Interface générique (usage 0x0000, usage_page 0x0001)  
+	if(endpoint.interface === 1 && endpoint.usage === 0x0000 && endpoint.usage_page === 0x0001) {
+		device.log("[VALIDATE] ✓ Interface 1 acceptée (interface générique)");
+		return true;
+	}
+	
+	// Interface 2: Contrôles HID multiples - accepter collection 0 ou 1
+	if(endpoint.interface === 2 && endpoint.collection <= 1) {
+		device.log("[VALIDATE] ✓ Interface 2 acceptée (contrôles HID)");
+		return true;
+	}
+	
+	// Fallback: accepter les interfaces vendor-specific
+	if(endpoint.usage_page === 0xff00) {
+		device.log("[VALIDATE] ✓ Interface vendor-specific acceptée");
+		return true;
+	}
+	
+	device.log("[VALIDATE] ✗ Interface rejetée");
+	return false;
 }
