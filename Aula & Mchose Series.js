@@ -1,6 +1,6 @@
 export function Name() { return "Aula & Mchose Series"; } 
-export function VendorId() { return 0x258a; }
-export function ProductId() { return 0x010c; }
+export function VendorId() { return 0x41E4; }
+export function ProductId() { return 0x2120; }
 export function Publisher() { return "Nollie"; } 
 export function DefaultPosition(){return [103, 32];}
 export function DefaultScale(){return 5.0;}
