@@ -379,13 +379,44 @@ Get RGB
 function sendColors(shutdown = false)
 {
 	let rgbdata = grabColors(shutdown);
-	let packet = [0x06,0x08,0x00,0x00,0x01,0x00,0x7a,0x01];
-	packet = packet.concat(rgbdata);
 	
-	// Pour VID:41E4 PID:2120 (Mchose ACE68 Air): utiliser device.write() 
-	// car ce clavier n'accepte pas les rapports de fonctionnalité HID
-	device.write(packet, 520);
-	device.log(`✓ Données RGB envoyées avec device.write(): ${packet.length} octets`);
+	// Pour Mchose ACE68 Air: envoyer les données RGB par chunks de 64 octets
+	// comme les autres claviers de cette série
+	const MaxLedsInPacket = 18; // Nombre maximum de LEDs par paquet de 64 octets
+	const totalLeds = vKeys.length;
+	const packetsNeeded = Math.ceil(totalLeds / MaxLedsInPacket);
+	
+	for(let packetIndex = 0; packetIndex < packetsNeeded; packetIndex++)
+	{
+		let packet = new Array(64).fill(0x00);
+		packet[0] = 0x06; // Report ID
+		packet[1] = 0x08; // Command
+		packet[2] = packetIndex; // Packet index
+		packet[3] = packetsNeeded; // Total packets
+		packet[4] = 0x01; // Mode
+		packet[5] = (packetIndex * MaxLedsInPacket) & 0xFF; // Start LED low byte
+		packet[6] = ((packetIndex * MaxLedsInPacket) >> 8) & 0xFF; // Start LED high byte
+		packet[7] = 0x00; // Reserved
+		
+		// Copier les données RGB pour ce paquet
+		let dataOffset = 8;
+		for(let ledInPacket = 0; ledInPacket < MaxLedsInPacket && (packetIndex * MaxLedsInPacket + ledInPacket) < totalLeds; ledInPacket++)
+		{
+			let ledIndex = packetIndex * MaxLedsInPacket + ledInPacket;
+			let rgbOffset = vKeys[ledIndex] * 3;
+			
+			if(rgbOffset < rgbdata.length && dataOffset + 2 < 64)
+			{
+				packet[dataOffset] = rgbdata[rgbOffset] || 0;     // R
+				packet[dataOffset + 1] = rgbdata[rgbOffset + 1] || 0; // G
+				packet[dataOffset + 2] = rgbdata[rgbOffset + 2] || 0; // B
+				dataOffset += 3;
+			}
+		}
+		
+		device.write(packet, 64);
+		device.log(`✓ Paquet ${packetIndex + 1}/${packetsNeeded} envoyé (64 octets)`);
+	}
 }
 
 function grabColors(shutdown = false) 
