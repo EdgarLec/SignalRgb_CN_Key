@@ -9,8 +9,8 @@ export function ControllableParameters()
 {
 	return [
 		{"property":"shutdownColor", "label":"Shutdown Color", "min":"0", "max":"360", "type":"color", "default":"000000"},
-		{"property":"LightingMode", "label":"Lighting Mode", "type":"combobox", "values":["Canvas", "Forced"], "default":"Canvas"},
-		{"property":"forcedColor", "label":"Forced Color", "min":"0", "max":"360", "type":"color", "default":"009bde"},
+		{"property":"LightingMode", "label":"Lighting Mode", "type":"combobox", "values":["Canvas", "Forced"], "default":"Forced"},
+		{"property":"forcedColor", "label":"Forced Color", "min":"0", "max":"360", "type":"color", "default":"ff0000"},
 		{"property":"boardModel", "group":"lighting", "label":"Key Type", "type":"combobox", "values":["Aula_F99", "Aula_F87","Aula_F87Pro","Aula_F75","Mchose_X75","Mchose_K99","Mchose_G98","Mchose_ACE68_Air"], "default":"Aula_F99"}];
 }
 
@@ -404,21 +404,28 @@ function sendColors(shutdown = false)
 {
 	let rgbdata = grabColors(shutdown);
 	
-	// Essayer l'approche Royal Kludge avec device.write et paquets plus petits
-	device.log(`[DEBUG] Tentative avec device.write() - ${rgbdata.length} octets de données RGB`);
-	
-	// Diviser les données en paquets plus petits comme Royal Kludge
-	let packet = [0x06,0x08,0x00,0x00,0x01,0x00,0x7a,0x01];
-	packet = packet.concat(rgbdata.slice(0, 56)); // Limiter à 56 octets de données RGB
-	
-	// Compléter le paquet à 64 octets
-	while(packet.length < 64) {
-		packet.push(0x00);
+	// Diagnostic: afficher les premières couleurs pour vérifier
+	if(rgbdata.length >= 9) {
+		device.log(`[DEBUG] Premiers pixels RGB: [${rgbdata[0]},${rgbdata[1]},${rgbdata[2]}] [${rgbdata[3]},${rgbdata[4]},${rgbdata[5]}] [${rgbdata[6]},${rgbdata[7]},${rgbdata[8]}]`);
 	}
 	
-	device.log(`[DEBUG] Envoi paquet de ${packet.length} octets via device.write()`);
-	device.write(packet, 64);
-	device.log(`✓ Données RGB envoyées avec write() - ACE68 Air: ${packet.length} octets`);
+	// Tester plusieurs approches de paquets Mchose
+	// Approche 1: Paquet simple comme d'autres claviers Mchose
+	let packet1 = [0x08, 0x01, 0x01, 0x00];
+	packet1 = packet1.concat(rgbdata.slice(0, 60)); // 60 bytes RGB (20 LEDs)
+	while(packet1.length < 64) packet1.push(0x00);
+	
+	device.log(`[DEBUG] Test Approche 1: header [0x08,0x01,0x01,0x00] + 60 bytes RGB`);
+	device.write(packet1, 64);
+	device.pause(10);
+	
+	// Approche 2: Avec commande d'activation
+	let packet2 = [0x08, 0x02, 0x00, 0x01];
+	packet2 = packet2.concat(rgbdata.slice(0, 60));
+	while(packet2.length < 64) packet2.push(0x00);
+	
+	device.log(`[DEBUG] Test Approche 2: header [0x08,0x02,0x00,0x01] + 60 bytes RGB`);
+	device.write(packet2, 64);
 }
 
 function grabColors(shutdown = false) 
