@@ -11,7 +11,7 @@ export function ControllableParameters()
 		{"property":"shutdownColor", "label":"Shutdown Color", "min":"0", "max":"360", "type":"color", "default":"000000"},
 		{"property":"LightingMode", "label":"Lighting Mode", "type":"combobox", "values":["Canvas", "Forced"], "default":"Canvas"},
 		{"property":"forcedColor", "label":"Forced Color", "min":"0", "max":"360", "type":"color", "default":"009bde"},
-		{"property":"boardModel", "group":"lighting", "label":"Key Type", "type":"combobox", "values":["Aula_F99", "Aula_F87","Aula_F87Pro","Aula_F75","Mchose_X75","Mchose_K99","Mchose_G98"], "default":"Aula_F99"}];
+		{"property":"boardModel", "group":"lighting", "label":"Key Type", "type":"combobox", "values":["Aula_F99", "Aula_F87","Aula_F87Pro","Aula_F75","Mchose_X75","Mchose_K99","Mchose_G98","Mchose_ACE68_Air"], "default":"Aula_F99"}];
 }
 
 /* 
@@ -27,6 +27,13 @@ Version:V1.1
 log:添加Aula F75灯珠名字
 log:修复Aula F87&F87_Pro灯珠
 log:修复Aula F99灯珠位置错误和不亮
+*/
+
+/* 
+Time:2025/1/29
+Author: GitHub Copilot
+Version:V1.2
+log:添加Mchose ACE68 Air支持
 */
 
 let vKeyNames = [];
@@ -238,6 +245,34 @@ const boards =
 			[3, 27],[9, 27],[15, 27], 					[34, 27], 				  [48,27],	  [52,27],   [59, 27],    [65, 27],   [72, 28], [79, 28],[84,28], [90,27], [95,27]
 		],
 		size: 			[103, 32]
+	},
+	Mchose_ACE68_Air:{
+		name: "Mchose ACE68 Air",
+		vKeyNames:      
+		[
+			"Esc", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-_", "=+", "Backspace", "Delete",
+			"Tab", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "[", "]", "\\", "Page Up",
+			"CapsLock", "A", "S", "D", "F", "G", "H", "J", "K", "L", ";", "'", "Enter", "Page Down",
+			"Left Shift", "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/", "Right Shift", "Up Arrow",
+			"Left Ctrl", "Left Win", "Left Alt", "Space", "Right Alt", "Fn", "Right Ctrl", "Left Arrow", "Down Arrow", "Right Arrow"
+		],
+		vKeys: 
+		[
+			0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14,
+			15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29,
+			30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43,
+			44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56,
+			57, 58, 59, 60, 61, 62, 63, 64, 65, 66
+		],
+		vKeyPositions:  
+		[
+			[0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [5, 0], [6, 0], [7, 0], [8, 0], [9, 0], [10, 0], [11, 0], [12, 0], [13, 0], [14, 0],
+			[0, 1], [1, 1], [2, 1], [3, 1], [4, 1], [5, 1], [6, 1], [7, 1], [8, 1], [9, 1], [10, 1], [11, 1], [12, 1], [13, 1], [14, 1],
+			[0, 2], [1, 2], [2, 2], [3, 2], [4, 2], [5, 2], [6, 2], [7, 2], [8, 2], [9, 2], [10, 2], [11, 2], [12, 2], [14, 2],
+			[0, 3], [1, 3], [2, 3], [3, 3], [4, 3], [5, 3], [6, 3], [7, 3], [8, 3], [9, 3], [10, 3], [11, 3], [13, 3],
+			[0, 4], [1, 4], [2, 4], [6, 4], [10, 4], [11, 4], [12, 4], [13, 4], [14, 4], [15, 4]
+		],
+		size: 			[16, 5]
 	},
 };
 
