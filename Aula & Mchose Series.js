@@ -403,12 +403,22 @@ Get RGB
 function sendColors(shutdown = false)
 {
 	let rgbdata = grabColors(shutdown);
-	let packet = [0x06,0x08,0x00,0x00,0x01,0x00,0x7a,0x01];
-	packet = packet.concat(rgbdata);
 	
-	device.log(`[DEBUG] Envoi avec send_report - ${packet.length} octets`);
-	device.send_report(packet, 520);
-	device.log(`✓ Données RGB envoyées avec send_report - ACE68 Air: ${packet.length} octets`);
+	// Essayer l'approche Royal Kludge avec device.write et paquets plus petits
+	device.log(`[DEBUG] Tentative avec device.write() - ${rgbdata.length} octets de données RGB`);
+	
+	// Diviser les données en paquets plus petits comme Royal Kludge
+	let packet = [0x06,0x08,0x00,0x00,0x01,0x00,0x7a,0x01];
+	packet = packet.concat(rgbdata.slice(0, 56)); // Limiter à 56 octets de données RGB
+	
+	// Compléter le paquet à 64 octets
+	while(packet.length < 64) {
+		packet.push(0x00);
+	}
+	
+	device.log(`[DEBUG] Envoi paquet de ${packet.length} octets via device.write()`);
+	device.write(packet, 64);
+	device.log(`✓ Données RGB envoyées avec write() - ACE68 Air: ${packet.length} octets`);
 }
 
 function grabColors(shutdown = false) 
@@ -465,14 +475,14 @@ export function Validate(endpoint)
 {
 	device.log(`[VALIDATE] Testing interface=${endpoint.interface}, usage=0x${endpoint.usage.toString(16).padStart(4, '0')}, usage_page=0x${endpoint.usage_page.toString(16).padStart(4, '0')}, collection=${endpoint.collection}`);
 	
-	// Pour Mchose ACE68 Air (VID:41E4 PID:2120): utiliser seulement l'interface 2
-	// Vérifier les VID/PID directement car boardModel pourrait ne pas être initialisé
-	if(endpoint.interface === 2) {
-		device.log("[VALIDATE] ✓ Interface 2 acceptée (Mchose ACE68 Air)");
+	// Pour Mchose ACE68 Air (VID:41E4 PID:2120): essayer l'interface 1 au lieu de 2
+	// Certains claviers Mchose utilisent l'interface 1 pour les rapports de sortie
+	if(endpoint.interface === 1) {
+		device.log("[VALIDATE] ✓ Interface 1 acceptée (Mchose ACE68 Air)");
 		return true;
 	}
 	
 	// Pour les autres interfaces, rejeter pour éviter les conflits
-	device.log("[VALIDATE] ✗ Interface rejetée - seule l'interface 2 est supportée pour ce périphérique");
+	device.log("[VALIDATE] ✗ Interface rejetée - seule l'interface 1 est supportée pour ce périphérique");
 	return false;
 }
