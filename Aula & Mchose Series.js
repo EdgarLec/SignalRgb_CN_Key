@@ -406,21 +406,15 @@ function sendColors(shutdown = false)
 	let packet = [0x06,0x08,0x00,0x00,0x01,0x00,0x7a,0x01];
 	packet = packet.concat(rgbdata);
 	
-	// Ensure packet is exactly 520 bytes for Mchose ACE68 Air
-	while(packet.length < 520) {
-		packet.push(0x00);
-	}
-	
-	// Pour VID:41E4 PID:2120 (Mchose ACE68 Air): utiliser device.write() 
-	// car ce clavier n'accepte pas les rapports de fonctionnalité HID
-	device.log(`[DEBUG] Envoi de ${packet.length} octets via device.write()`);
-	device.write(packet, 520);
-	device.log(`✓ Données RGB envoyées avec device.write() - ACE68 Air: ${packet.length} octets`);
+	device.log(`[DEBUG] Envoi avec send_report - ${packet.length} octets`);
+	device.send_report(packet, 520);
+	device.log(`✓ Données RGB envoyées avec send_report - ACE68 Air: ${packet.length} octets`);
 }
 
 function grabColors(shutdown = false) 
 {
-	// Initialize RGB data array with zeros for 512 bytes (170 LEDs * 3 colors + padding)
+	// Initialize RGB data array with zeros - size based on actual number of keys
+	// Mchose ACE68 Air has 60 keys, so we need 60 * 3 = 180 bytes + some padding
 	let rgbdata = new Array(512).fill(0);
 
 	for(let iIdx = 0; iIdx < vKeys.length; iIdx++)
@@ -449,6 +443,11 @@ function grabColors(shutdown = false)
 			rgbdata[iLedIdx+1] = color[1];
 			rgbdata[iLedIdx+2] = color[2];
 		}
+	}
+
+	// Fill the rest with padding like other keyboards in the workspace
+	while(rgbdata.length < 512) {
+		rgbdata.push(0);
 	}
 
 	return rgbdata;
