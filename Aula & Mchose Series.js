@@ -408,7 +408,7 @@ export function Render()
 	}
 	
 	sendColors();
-	device.pause(1);
+	device.pause(100); // Augmenter la pause pour limiter la fréquence
 }
 
 
@@ -425,46 +425,50 @@ function sendColors(shutdown = false)
 		device.log(`[DEBUG] Premiers pixels RGB: [${rgbdata[0]},${rgbdata[1]},${rgbdata[2]}] [${rgbdata[3]},${rgbdata[4]},${rgbdata[5]}] [${rgbdata[6]},${rgbdata[7]},${rgbdata[8]}]`);
 	}
 	
-	// Nouvelle approche: Protocole type AJAZZ/Royal Kludge avec plusieurs paquets
-	// Diviser les données RGB en paquets de 20 LEDs (60 bytes RGB + 4 bytes header)
-	const MaxLedsInPacket = 20;
-	const totalLeds = Math.min(vKeys.length, 68); // Limiter à 68 LEDs pour 65%
-	const packetsNeeded = Math.ceil(totalLeds / MaxLedsInPacket);
+	// Test avec différents headers basés sur d'autres claviers du workspace
+	// Essayer le protocole 1STPLAYER d'abord (plus simple)
+	device.log(`[DEBUG] Test protocole 1STPLAYER style`);
 	
-	device.log(`[DEBUG] Envoi ${packetsNeeded} paquets pour ${totalLeds} LEDs`);
+	// Commandes de préparation
+	device.write([0x01, 0x0D], 64);
+	device.pause(10);
+	device.write([0x01, 0x15], 64); 
+	device.pause(10);
+	device.write([0x01, 0x0A], 64);
+	device.pause(10);
+	device.write([0x01, 0x02], 64);
+	device.pause(10);
 	
-	for(let packetIndex = 0; packetIndex < packetsNeeded; packetIndex++) {
-		let packet = [0x04, 0x01, 0x01, 0x02]; // Header type AJAZZ modifié
-		
-		// Calculer les LEDs pour ce paquet
-		let startLed = packetIndex * MaxLedsInPacket;
-		let endLed = Math.min(startLed + MaxLedsInPacket, totalLeds);
-		let ledsInThisPacket = endLed - startLed;
-		
-		// Ajouter les données RGB pour ce paquet
-		for(let i = 0; i < ledsInThisPacket; i++) {
-			let ledIndex = startLed + i;
-			if(ledIndex < vKeys.length) {
-				let rgbIndex = vKeys[ledIndex] * 3;
-				packet.push(rgbdata[rgbIndex]);     // R
-				packet.push(rgbdata[rgbIndex + 1]); // G  
-				packet.push(rgbdata[rgbIndex + 2]); // B
-			}
-		}
-		
-		// Remplir le reste du paquet avec des zéros
-		while(packet.length < 64) packet.push(0x00);
-		
-		device.log(`[DEBUG] Paquet ${packetIndex + 1}/${packetsNeeded}: ${ledsInThisPacket} LEDs (${startLed}-${endLed-1})`);
-		device.write(packet, 64);
-		device.pause(1); // Petit délai entre les paquets
+	// Commande de configuration RGB
+	device.write([0x01, 0x07, 0x00, 0x00, 0x00, 0x0E, 0x00, 0x04, 0x03, 0xFF], 64);
+	device.pause(10);
+	
+	// Activation du mode
+	device.write([0x01, 0x17, 0x00, 0x00, 0x00, 0x01, 0x01], 64);
+	device.pause(10);
+	
+	// Paquet principal avec données RGB
+	let packet = [0x01, 0x08, 0x00, 0x00, 0x00, 0x0D, 0x02, 0x03, 0x03, 0xFF];
+	
+	// Ajouter les premières données RGB (limitées à ce qui rentre)
+	let maxRgbBytes = 54; // 64 - 10 (header) = 54 bytes RGB max
+	for(let i = 0; i < Math.min(maxRgbBytes, rgbdata.length); i++) {
+		packet.push(rgbdata[i]);
 	}
 	
-	// Commande de fin/validation
-	let finishPacket = [0x04, 0x02, 0x00, 0x00];
-	while(finishPacket.length < 64) finishPacket.push(0x00);
-	device.write(finishPacket, 64);
-	device.log(`[DEBUG] Commande de fin envoyée`);
+	// Compléter à 64 bytes
+	while(packet.length < 64) packet.push(0x00);
+	
+	device.log(`[DEBUG] Envoi paquet principal: ${packet.length} bytes`);
+	device.write(packet, 64);
+	device.pause(10);
+	
+	// Commandes de finalisation
+	device.write([0x01, 0x0F, 0x01, 0x00, 0x00, 0x36], 64);
+	device.pause(10);
+	device.write([0x01, 0x0F, 0x01, 0x00, 0x01, 0x2D], 64);
+	
+	device.log(`[DEBUG] Séquence 1STPLAYER terminée`);
 }
 
 function grabColors(shutdown = false) 
