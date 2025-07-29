@@ -351,6 +351,9 @@ export function onboardModelChanged ()
 
 export function Initialize() 
 {
+	// Forcer le modèle Mchose ACE68 Air pour ce VID/PID
+	boardModel = "Mchose_ACE68_Air";
+	
 	vKeyNames = boards[boardModel].vKeyNames;
 	vKeyPositions = boards[boardModel].vKeyPositions;
 	vKeys = boards[boardModel].vKeys;
@@ -358,9 +361,7 @@ export function Initialize()
 	device.setControllableLeds(vKeyNames, vKeyPositions);
 	device.setName(boards[boardModel].name);
 	device.setSize(boards[boardModel].size);
-	device.log(`Model set to: ` + boards[boardModel].name);
-	device.log('@Nuonuo V1.0');
-
+	device.log(`✓ Modèle forcé: ${boards[boardModel].name} (VID:41E4 PID:2120)`);
 }
 
 
@@ -381,13 +382,10 @@ function sendColors(shutdown = false)
 	let packet = [0x06,0x08,0x00,0x00,0x01,0x00,0x7a,0x01];
 	packet = packet.concat(rgbdata);
 	
-	// Pour Mchose ACE68 Air: utiliser device.write() au lieu de device.send_report()
+	// Pour VID:41E4 PID:2120 (Mchose ACE68 Air): utiliser device.write() 
 	// car ce clavier n'accepte pas les rapports de fonctionnalité HID
-	if(boardModel === "Mchose_ACE68_Air") {
-		device.write(packet, 520);
-	} else {
-		device.send_report(packet, 520);
-	}
+	device.write(packet, 520);
+	device.log(`✓ Données RGB envoyées avec device.write(): ${packet.length} octets`);
 }
 
 function grabColors(shutdown = false) 
@@ -436,41 +434,14 @@ export function Validate(endpoint)
 {
 	device.log(`[VALIDATE] Testing interface=${endpoint.interface}, usage=0x${endpoint.usage.toString(16).padStart(4, '0')}, usage_page=0x${endpoint.usage_page.toString(16).padStart(4, '0')}, collection=${endpoint.collection}`);
 	
-	// Pour Mchose ACE68 Air: utiliser seulement l'interface 2
-	if(boardModel === "Mchose_ACE68_Air") {
-		if(endpoint.interface === 2) {
-			device.log("[VALIDATE] ✓ Interface 2 acceptée pour Mchose ACE68 Air");
-			return true;
-		}
-		device.log("[VALIDATE] ✗ Interface rejetée pour Mchose ACE68 Air - seule l'interface 2 est supportée");
-		return false;
-	}
-	
-	// Pour les autres claviers (Aula série):
-	// Interface 0: Clavier standard (usage 0x0006, usage_page 0x0001)
-	if(endpoint.interface === 0 && endpoint.usage === 0x0006 && endpoint.usage_page === 0x0001) {
-		device.log("[VALIDATE] ✓ Interface 0 acceptée (clavier standard)");
+	// Pour Mchose ACE68 Air (VID:41E4 PID:2120): utiliser seulement l'interface 2
+	// Vérifier les VID/PID directement car boardModel pourrait ne pas être initialisé
+	if(endpoint.interface === 2) {
+		device.log("[VALIDATE] ✓ Interface 2 acceptée (Mchose ACE68 Air)");
 		return true;
 	}
 	
-	// Interface 1: Interface générique (usage 0x0000, usage_page 0x0001)  
-	if(endpoint.interface === 1 && endpoint.usage === 0x0000 && endpoint.usage_page === 0x0001) {
-		device.log("[VALIDATE] ✓ Interface 1 acceptée (interface générique)");
-		return true;
-	}
-	
-	// Interface 2: Contrôles HID multiples - accepter collection 0 ou 1
-	if(endpoint.interface === 2 && endpoint.collection <= 1) {
-		device.log("[VALIDATE] ✓ Interface 2 acceptée (contrôles HID)");
-		return true;
-	}
-	
-	// Fallback: accepter les interfaces vendor-specific
-	if(endpoint.usage_page === 0xff00) {
-		device.log("[VALIDATE] ✓ Interface vendor-specific acceptée");
-		return true;
-	}
-	
-	device.log("[VALIDATE] ✗ Interface rejetée");
+	// Pour les autres interfaces, rejeter pour éviter les conflits
+	device.log("[VALIDATE] ✗ Interface rejetée - seule l'interface 2 est supportée pour ce périphérique");
 	return false;
 }
