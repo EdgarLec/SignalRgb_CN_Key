@@ -351,6 +351,8 @@ export function onboardModelChanged ()
 
 export function Initialize() 
 {
+	device.log("[INIT] Initialisation Mchose ACE68 Air (VID:41E4 PID:2120)");
+	
 	// Forcer le modèle Mchose ACE68 Air pour ce VID/PID
 	boardModel = "Mchose_ACE68_Air";
 	
@@ -361,12 +363,18 @@ export function Initialize()
 	device.setControllableLeds(vKeyNames, vKeyPositions);
 	device.setName(boards[boardModel].name);
 	device.setSize(boards[boardModel].size);
-	device.log(`✓ Modèle forcé: ${boards[boardModel].name} (VID:41E4 PID:2120)`);
+	device.log(`✓ Modèle forcé: ${boards[boardModel].name} - ${vKeyNames.length} touches configurées`);
+	device.log(`✓ Utilisation exclusive de device.write() pour ce périphérique`);
 }
 
 
 export function Render() 
 {
+	if(!boardModel || boardModel !== "Mchose_ACE68_Air") {
+		device.log("[ERROR] Modèle incorrect ou non initialisé");
+		return;
+	}
+	
 	sendColors();
 	device.pause(1);
 }
@@ -379,30 +387,25 @@ Get RGB
 function sendColors(shutdown = false)
 {
 	let rgbdata = grabColors(shutdown);
+	let packet = [0x06,0x08,0x00,0x00,0x01,0x00,0x7a,0x01];
+	packet = packet.concat(rgbdata);
 	
-	// Pour Mchose ACE68 Air: essayer device.send_report() avec un format simple
-	let packet = [0x06, 0x08, 0x00, 0x01];  // En-tête simplifié
-	packet = packet.concat(rgbdata.slice(0, 512)); // Limiter à 512 octets max
-	
-	try {
-		device.send_report(packet, packet.length);
-		device.log(`✓ Données RGB envoyées avec send_report: ${packet.length} octets`);
-	} catch (error) {
-		device.log(`✗ Erreur send_report: ${error}`);
-		
-		// Essayer avec device.write() en dernier recours
-		try {
-			device.write(packet, packet.length);
-			device.log(`✓ Données RGB envoyées avec write: ${packet.length} octets`);
-		} catch (writeError) {
-			device.log(`✗ Erreur write: ${writeError}`);
-		}
+	// Ensure packet is exactly 520 bytes for Mchose ACE68 Air
+	while(packet.length < 520) {
+		packet.push(0x00);
 	}
+	
+	// Pour VID:41E4 PID:2120 (Mchose ACE68 Air): utiliser device.write() 
+	// car ce clavier n'accepte pas les rapports de fonctionnalité HID
+	device.log(`[DEBUG] Envoi de ${packet.length} octets via device.write()`);
+	device.write(packet, 520);
+	device.log(`✓ Données RGB envoyées avec device.write() - ACE68 Air: ${packet.length} octets`);
 }
 
 function grabColors(shutdown = false) 
 {
-	let rgbdata = [];
+	// Initialize RGB data array with zeros for 512 bytes (170 LEDs * 3 colors + padding)
+	let rgbdata = new Array(512).fill(0);
 
 	for(let iIdx = 0; iIdx < vKeys.length; iIdx++)
 	{
@@ -424,35 +427,37 @@ function grabColors(shutdown = false)
 		}
 
 		let iLedIdx = vKeys[iIdx] * 3;
-		rgbdata[iLedIdx] = color[0];
-		rgbdata[iLedIdx+1] = color[1];
-		rgbdata[iLedIdx+2] = color[2];
+		// Ensure we don't exceed array bounds
+		if(iLedIdx + 2 < rgbdata.length) {
+			rgbdata[iLedIdx] = color[0];
+			rgbdata[iLedIdx+1] = color[1];
+			rgbdata[iLedIdx+2] = color[2];
+		}
 	}
 
-	// Remplir jusqu'à 512 octets de données RGB
-	let Fill = new Array(24).fill(0);
-	rgbdata = rgbdata.concat(Fill);
 	return rgbdata;
 }
 
 export function Shutdown() 
 {
+	device.log("[SHUTDOWN] Arrêt du Mchose ACE68 Air...");
 	// Éteindre toutes les LEDs avec la couleur d'arrêt
 	sendColors(true);
-	device.log("✓ Périphérique éteint");
+	device.log("✓ Périphérique ACE68 Air éteint");
 }
 
 export function Validate(endpoint) 
 {
 	device.log(`[VALIDATE] Testing interface=${endpoint.interface}, usage=0x${endpoint.usage.toString(16).padStart(4, '0')}, usage_page=0x${endpoint.usage_page.toString(16).padStart(4, '0')}, collection=${endpoint.collection}`);
 	
-	// Pour Mchose ACE68 Air (VID:41E4 PID:2120): tester toutes les interfaces pour voir lesquelles fonctionnent
-	if(endpoint.interface === 0 || endpoint.interface === 1 || endpoint.interface === 2) {
-		device.log(`[VALIDATE] ✓ Interface ${endpoint.interface} acceptée pour diagnostic`);
+	// Pour Mchose ACE68 Air (VID:41E4 PID:2120): utiliser seulement l'interface 2
+	// Vérifier les VID/PID directement car boardModel pourrait ne pas être initialisé
+	if(endpoint.interface === 2) {
+		device.log("[VALIDATE] ✓ Interface 2 acceptée (Mchose ACE68 Air)");
 		return true;
 	}
 	
-	// Pour les autres interfaces, rejeter
-	device.log("[VALIDATE] ✗ Interface rejetée - pas dans la plage 0-2");
+	// Pour les autres interfaces, rejeter pour éviter les conflits
+	device.log("[VALIDATE] ✗ Interface rejetée - seule l'interface 2 est supportée pour ce périphérique");
 	return false;
 }
