@@ -378,22 +378,22 @@ export function Initialize()
 	device.setSize(boards[boardModel].size);
 	device.log(`✓ Modèle forcé: ${boards[boardModel].name} - ${vKeyNames.length} touches configurées`);
 	
-	// Séquence d'initialisation spécifique Mchose ACE68 Air
-	device.log("[INIT] Envoi séquence d'initialisation...");
+	// Séquence d'initialisation simplifiée pour ACE68 Air
+	device.log("[INIT] Séquence d'initialisation simplifiée...");
 	
-	// Commande de réveil/reset
-	device.write([0x04, 0x00, 0x00, 0x00], 64);
-	device.pause(50);
+	// Reset/Wake up
+	device.write([0x00, 0x00, 0x00, 0x00], 64);
+	device.pause(100);
 	
-	// Commande d'activation du mode RGB
-	device.write([0x04, 0x03, 0x01, 0x01], 64);
-	device.pause(50);
+	// Set RGB mode
+	device.write([0x07, 0x01, 0x01, 0x00], 64);
+	device.pause(100);
 	
-	// Commande de préparation
-	device.write([0x04, 0x04, 0x00, 0x68], 64); // 0x68 = 104 (nombre de LEDs estimé)
-	device.pause(50);
+	// Enable RGB
+	device.write([0xFF, 0x01, 0x00, 0x43], 64); // 0x43 = 67 keys
+	device.pause(100);
 	
-	device.log(`✓ Séquence d'initialisation terminée`);
+	device.log(`✓ Séquence d'initialisation simplifiée terminée`);
 	device.log(`[INIT] Initialisation terminée. boardModel = "${boardModel}"`);
 }
 
@@ -425,50 +425,54 @@ function sendColors(shutdown = false)
 		device.log(`[DEBUG] Premiers pixels RGB: [${rgbdata[0]},${rgbdata[1]},${rgbdata[2]}] [${rgbdata[3]},${rgbdata[4]},${rgbdata[5]}] [${rgbdata[6]},${rgbdata[7]},${rgbdata[8]}]`);
 	}
 	
-	// Test avec différents headers basés sur d'autres claviers du workspace
-	// Essayer le protocole 1STPLAYER d'abord (plus simple)
-	device.log(`[DEBUG] Test protocole 1STPLAYER style`);
+	// Test avec un protocole ultra-simple - approche directe
+	device.log(`[DEBUG] Test protocole direct simple`);
 	
-	// Commandes de préparation
-	device.write([0x01, 0x0D], 64);
-	device.pause(10);
-	device.write([0x01, 0x15], 64); 
-	device.pause(10);
-	device.write([0x01, 0x0A], 64);
-	device.pause(10);
-	device.write([0x01, 0x02], 64);
-	device.pause(10);
+	// Approche 1: Paquet RGB direct sans header complexe
+	let simplePacket = [0xFF, 0x00, 0x01]; // Magic header simple
 	
-	// Commande de configuration RGB
-	device.write([0x01, 0x07, 0x00, 0x00, 0x00, 0x0E, 0x00, 0x04, 0x03, 0xFF], 64);
-	device.pause(10);
-	
-	// Activation du mode
-	device.write([0x01, 0x17, 0x00, 0x00, 0x00, 0x01, 0x01], 64);
-	device.pause(10);
-	
-	// Paquet principal avec données RGB
-	let packet = [0x01, 0x08, 0x00, 0x00, 0x00, 0x0D, 0x02, 0x03, 0x03, 0xFF];
-	
-	// Ajouter les premières données RGB (limitées à ce qui rentre)
-	let maxRgbBytes = 54; // 64 - 10 (header) = 54 bytes RGB max
-	for(let i = 0; i < Math.min(maxRgbBytes, rgbdata.length); i++) {
-		packet.push(rgbdata[i]);
+	// Ajouter les données RGB directement (maximum 61 bytes)
+	for(let i = 0; i < Math.min(61, rgbdata.length); i++) {
+		simplePacket.push(rgbdata[i]);
 	}
 	
 	// Compléter à 64 bytes
-	while(packet.length < 64) packet.push(0x00);
+	while(simplePacket.length < 64) simplePacket.push(0x00);
 	
-	device.log(`[DEBUG] Envoi paquet principal: ${packet.length} bytes`);
-	device.write(packet, 64);
-	device.pause(10);
+	device.log(`[DEBUG] Test 1: Simple RGB packet`);
+	device.write(simplePacket, 64);
+	device.pause(50);
 	
-	// Commandes de finalisation
-	device.write([0x01, 0x0F, 0x01, 0x00, 0x00, 0x36], 64);
-	device.pause(10);
-	device.write([0x01, 0x0F, 0x01, 0x00, 0x01, 0x2D], 64);
+	// Approche 2: Pattern commun 0x07 pour RGB
+	let rgbPacket = [0x07, 0x01, 0x00, 0x43]; // 0x43 = 67 LEDs
 	
-	device.log(`[DEBUG] Séquence 1STPLAYER terminée`);
+	for(let i = 0; i < Math.min(60, rgbdata.length); i++) {
+		rgbPacket.push(rgbdata[i]);
+	}
+	
+	while(rgbPacket.length < 64) rgbPacket.push(0x00);
+	
+	device.log(`[DEBUG] Test 2: RGB packet avec header 0x07`);
+	device.write(rgbPacket, 64);
+	device.pause(50);
+	
+	// Approche 3: Pattern basé sur des claviers 65%
+	let packet65 = [0x02, 0x06, 0x43, 0x00]; // 0x43 = 67 keys
+	
+	for(let i = 0; i < Math.min(60, rgbdata.length); i++) {
+		packet65.push(rgbdata[i]);
+	}
+	
+	while(packet65.length < 64) packet65.push(0x00);
+	
+	device.log(`[DEBUG] Test 3: Pattern 65% keyboard`);
+	device.write(packet65, 64);
+	device.pause(50);
+	
+	// Commande de validation finale
+	device.write([0xFF, 0xFF, 0x00, 0x00], 64);
+	
+	device.log(`[DEBUG] Tests multiples terminés`);
 }
 
 function grabColors(shutdown = false) 
