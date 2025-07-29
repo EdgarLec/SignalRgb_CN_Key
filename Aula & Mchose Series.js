@@ -377,7 +377,23 @@ export function Initialize()
 	device.setName(boards[boardModel].name);
 	device.setSize(boards[boardModel].size);
 	device.log(`✓ Modèle forcé: ${boards[boardModel].name} - ${vKeyNames.length} touches configurées`);
-	device.log(`✓ Utilisation exclusive de device.write() pour ce périphérique`);
+	
+	// Séquence d'initialisation spécifique Mchose ACE68 Air
+	device.log("[INIT] Envoi séquence d'initialisation...");
+	
+	// Commande de réveil/reset
+	device.write([0x04, 0x00, 0x00, 0x00], 64);
+	device.pause(50);
+	
+	// Commande d'activation du mode RGB
+	device.write([0x04, 0x03, 0x01, 0x01], 64);
+	device.pause(50);
+	
+	// Commande de préparation
+	device.write([0x04, 0x04, 0x00, 0x68], 64); // 0x68 = 104 (nombre de LEDs estimé)
+	device.pause(50);
+	
+	device.log(`✓ Séquence d'initialisation terminée`);
 	device.log(`[INIT] Initialisation terminée. boardModel = "${boardModel}"`);
 }
 
@@ -409,23 +425,46 @@ function sendColors(shutdown = false)
 		device.log(`[DEBUG] Premiers pixels RGB: [${rgbdata[0]},${rgbdata[1]},${rgbdata[2]}] [${rgbdata[3]},${rgbdata[4]},${rgbdata[5]}] [${rgbdata[6]},${rgbdata[7]},${rgbdata[8]}]`);
 	}
 	
-	// Tester plusieurs approches de paquets Mchose
-	// Approche 1: Paquet simple comme d'autres claviers Mchose
-	let packet1 = [0x08, 0x01, 0x01, 0x00];
-	packet1 = packet1.concat(rgbdata.slice(0, 60)); // 60 bytes RGB (20 LEDs)
-	while(packet1.length < 64) packet1.push(0x00);
+	// Nouvelle approche: Protocole type AJAZZ/Royal Kludge avec plusieurs paquets
+	// Diviser les données RGB en paquets de 20 LEDs (60 bytes RGB + 4 bytes header)
+	const MaxLedsInPacket = 20;
+	const totalLeds = Math.min(vKeys.length, 68); // Limiter à 68 LEDs pour 65%
+	const packetsNeeded = Math.ceil(totalLeds / MaxLedsInPacket);
 	
-	device.log(`[DEBUG] Test Approche 1: header [0x08,0x01,0x01,0x00] + 60 bytes RGB`);
-	device.write(packet1, 64);
-	device.pause(10);
+	device.log(`[DEBUG] Envoi ${packetsNeeded} paquets pour ${totalLeds} LEDs`);
 	
-	// Approche 2: Avec commande d'activation
-	let packet2 = [0x08, 0x02, 0x00, 0x01];
-	packet2 = packet2.concat(rgbdata.slice(0, 60));
-	while(packet2.length < 64) packet2.push(0x00);
+	for(let packetIndex = 0; packetIndex < packetsNeeded; packetIndex++) {
+		let packet = [0x04, 0x01, 0x01, 0x02]; // Header type AJAZZ modifié
+		
+		// Calculer les LEDs pour ce paquet
+		let startLed = packetIndex * MaxLedsInPacket;
+		let endLed = Math.min(startLed + MaxLedsInPacket, totalLeds);
+		let ledsInThisPacket = endLed - startLed;
+		
+		// Ajouter les données RGB pour ce paquet
+		for(let i = 0; i < ledsInThisPacket; i++) {
+			let ledIndex = startLed + i;
+			if(ledIndex < vKeys.length) {
+				let rgbIndex = vKeys[ledIndex] * 3;
+				packet.push(rgbdata[rgbIndex]);     // R
+				packet.push(rgbdata[rgbIndex + 1]); // G  
+				packet.push(rgbdata[rgbIndex + 2]); // B
+			}
+		}
+		
+		// Remplir le reste du paquet avec des zéros
+		while(packet.length < 64) packet.push(0x00);
+		
+		device.log(`[DEBUG] Paquet ${packetIndex + 1}/${packetsNeeded}: ${ledsInThisPacket} LEDs (${startLed}-${endLed-1})`);
+		device.write(packet, 64);
+		device.pause(1); // Petit délai entre les paquets
+	}
 	
-	device.log(`[DEBUG] Test Approche 2: header [0x08,0x02,0x00,0x01] + 60 bytes RGB`);
-	device.write(packet2, 64);
+	// Commande de fin/validation
+	let finishPacket = [0x04, 0x02, 0x00, 0x00];
+	while(finishPacket.length < 64) finishPacket.push(0x00);
+	device.write(finishPacket, 64);
+	device.log(`[DEBUG] Commande de fin envoyée`);
 }
 
 function grabColors(shutdown = false) 
