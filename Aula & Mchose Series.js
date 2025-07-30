@@ -9,8 +9,9 @@ export function ControllableParameters()
 {
 	return [
 		{"property":"shutdownColor", "label":"Shutdown Color", "min":"0", "max":"360", "type":"color", "default":"000000"},
-		{"property":"LightingMode", "label":"Lighting Mode", "type":"combobox", "values":["Canvas", "Forced"], "default":"Forced"},
+		{"property":"LightingMode", "label":"Lighting Mode", "type":"combobox", "values":["Canvas", "Forced", "Debug"], "default":"Forced"},
 		{"property":"forcedColor", "label":"Forced Color", "min":"0", "max":"360", "type":"color", "default":"ff0000"},
+		{"property":"debugColor", "label":"Debug Color", "min":"0", "max":"360", "type":"color", "default":"00ff00"},
 		{"property":"boardModel", "group":"lighting", "label":"Key Type", "type":"combobox", "values":["Aula_F99", "Aula_F87","Aula_F87Pro","Aula_F75","Mchose_X75","Mchose_K99","Mchose_G98","Mchose_ACE68_Air"], "default":"Aula_F99"}];
 }
 
@@ -254,28 +255,33 @@ const boards =
 			"Esc", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-_", "=+", "Backspace", "Delete",
 			"Tab", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "[", "]", "\\", "Page Up",
 			"CapsLock", "A", "S", "D", "F", "G", "H", "J", "K", "L", ";", "'", "Enter", "Page Down",
-			"Left Shift", "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/", "Right Shift", "Up Arrow",
+			"Left Shift", "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/", "Right Shift", "Up Arrow", "End",
 			"Left Ctrl", "Left Win", "Left Alt", "Space", "Right Alt", "Fn", "Right Ctrl", "Left Arrow", "Down Arrow", "Right Arrow"
 		],
 		vKeys: 
 		[
 			// Ligne 1: Esc, 1-0, -_, =+, Backspace, Delete (15 touches)
-			0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
+			0x96, 0x5A, 0x99, 0x7B, 0x5D, 0x9C, 0xD8, 0x60, 0x9F, 0xDB, 0x63, 0x09, 0xA2, 0x84, 0x66,
 			// Ligne 2: Tab, Q-P, [, ], \, Page Up (15 touches) 
-			0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D,
+			0xD2, 0x00, 0xD5, 0x03, 0x3F, 0x7E, 0x06, 0xBD, 0x81, 0x27, 0x45, 0xC0, 0xDE, 0x2A, 0x0C,
 			// Ligne 3: CapsLock, A-L, ;, ', Enter, Page Down (14 touches)
-			0x1E, 0x1F, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2A, 0x2B,
-			// Ligne 4: Left Shift, Z-/, Right Shift, Up Arrow (13 touches)
-			0x2C, 0x2D, 0x2E, 0x2F, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38,
+			0xB4, 0x1E, 0xB7, 0x21, 0xBA, 0x24, 0x42, 0x8A, 0x4E, 0x8D, 0xC9, 0xE7, 0x90, 0x48,
+			// Ligne 4: Left Shift, Z-/, Right Shift, Up Arrow, End (14 touches)
+			0x78, 0x3C, 0x4B, 0x2D, 0x0F, 0x69, 0xC6, 0xA8, 0x30, 0x12, 0xAB, 0x51, 0xCC, 0x54,
 			// Ligne 5: Left Ctrl, Left Win, Left Alt, Space, Right Alt, Fn, Right Ctrl, Left Arrow, Down Arrow, Right Arrow (10 touches)
-			0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F, 0x40, 0x41, 0x42
+			0x87, 0xE1, 0xA5, 0xE4, 0x6C, 0x15, 0x6F, 0xAE, 0xEA, 0x36
 		],
 		vKeyPositions:  
 		[
+			// Ligne 1 (15 touches): Esc à Delete
 			[0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [5, 0], [6, 0], [7, 0], [8, 0], [9, 0], [10, 0], [11, 0], [12, 0], [13, 0], [14, 0],
+			// Ligne 2 (15 touches): Tab à Page Up  
 			[0, 1], [1, 1], [2, 1], [3, 1], [4, 1], [5, 1], [6, 1], [7, 1], [8, 1], [9, 1], [10, 1], [11, 1], [12, 1], [13, 1], [14, 1],
+			// Ligne 3 (14 touches): CapsLock à Page Down (pas de touche en position [13, 2])
 			[0, 2], [1, 2], [2, 2], [3, 2], [4, 2], [5, 2], [6, 2], [7, 2], [8, 2], [9, 2], [10, 2], [11, 2], [12, 2], [14, 2],
+			// Ligne 4 (13 touches): Left Shift à Up Arrow (pas de touche en position [12, 3])
 			[0, 3], [1, 3], [2, 3], [3, 3], [4, 3], [5, 3], [6, 3], [7, 3], [8, 3], [9, 3], [10, 3], [11, 3], [13, 3],
+			// Ligne 5 (10 touches): modifiers et arrows (espace plus large, gaps entre)
 			[0, 4], [1, 4], [2, 4], [6, 4], [10, 4], [11, 4], [12, 4], [13, 4], [14, 4], [15, 4]
 		],
 		size: 			[16, 5]
@@ -425,6 +431,14 @@ Get RGB - Protocole basé sur le code Python fonctionnel
 */
 function sendColors(shutdown = false)
 {
+	// Vérification de cohérence des arrays
+	if(vKeys.length !== vKeyNames.length || vKeys.length !== vKeyPositions.length) {
+		device.log(`[ERROR] Incohérence des arrays: vKeys=${vKeys.length}, vKeyNames=${vKeyNames.length}, vKeyPositions=${vKeyPositions.length}`);
+		return;
+	}
+	
+	device.log(`[INFO] Envoi de ${vKeys.length} LEDs en mode ${LightingMode}`);
+
 	// Obtenir les couleurs pour chaque LED
 	for(let iIdx = 0; iIdx < vKeys.length; iIdx++)
 	{
@@ -440,9 +454,19 @@ function sendColors(shutdown = false)
 		{
 			color = hexToRgb(forcedColor);
 		}
+		else if (LightingMode === "Debug")
+		{
+			// Mode debug: toutes les LEDs en vert pour vérifier le mapping
+			color = hexToRgb(debugColor);
+		}
 		else
 		{
 			color = device.color(iPxX, iPxY);
+		}
+
+		// Debug pour les premières LEDs
+		if(iIdx < 5) {
+			device.log(`[DEBUG] LED ${iIdx}: ${vKeyNames[iIdx]} pos(${iPxX},${iPxY}) -> vKey[0x${vKeys[iIdx].toString(16).toUpperCase()}] -> RGB(${color[0]},${color[1]},${color[2]})`);
 		}
 
 		// Envoyer la couleur pour cette LED spécifique
