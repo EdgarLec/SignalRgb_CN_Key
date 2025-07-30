@@ -32,7 +32,10 @@ let arraysChecked = false;
 let lastColors = [];
 let lastUpdateTime = 0;
 let isProcessingQueue = false;
-const MIN_UPDATE_INTERVAL = 16; // Réduit la fréquence de 125fps à 60fps
+const MIN_UPDATE_INTERVAL = 20; // Réduit encore plus la fréquence pour stabilité
+// Variables pour la queue des LEDs restantes
+let pendingLEDs = [];
+let frameCounter = 0;
 /*
 
 */
@@ -314,8 +317,7 @@ key
 export function Size() 
 {
 	device.log('@Size');
-	// device.log( boards[boardModel]);
-	// return boards[boardModel].size;
+	return boards[boardModel].size;
 }
 
 export function LedNames() 
@@ -354,16 +356,18 @@ export function onperformanceModeChanged()
 	lastColors = new Array(vKeys.length).fill(-1);
 	lastUpdateTime = 0;
 	isProcessingQueue = false;
+	pendingLEDs = [];
+	frameCounter = 0;
 	
 	switch(performanceMode) {
 		case "Smooth":
-			device.log("[PERF] Mode Smooth: 30 FPS, max 8 LEDs/frame pour stabilité");
+			device.log("[PERF] Mode Smooth: 25 FPS, max 6 LEDs/frame pour stabilité maximale");
 			break;
 		case "Responsive":
-			device.log("[PERF] Mode Responsive: 60 FPS, max 16 LEDs/frame");
+			device.log("[PERF] Mode Responsive: 50 FPS, max 12 LEDs/frame");
 			break;
 		default:
-			device.log("[PERF] Mode Balanced: 50 FPS, max 12 LEDs/frame");
+			device.log("[PERF] Mode Balanced: 40 FPS, max 8 LEDs/frame");
 			break;
 	}
 }
@@ -392,6 +396,8 @@ export function Initialize()
 	lastColors = new Array(vKeys.length).fill(-1);
 	arraysChecked = true;
 	isProcessingQueue = false;
+	pendingLEDs = [];
+	frameCounter = 0;
 	
 	device.log(`✓ Modèle forcé: ${boards[boardModel].name} - ${vKeyNames.length} touches configurées`);
 	device.log(`✓ Cache de couleurs initialisé pour ${lastColors.length} LEDs`);
@@ -408,13 +414,13 @@ export function Render()
 	let updateInterval;
 	switch(performanceMode) {
 		case "Smooth":
-			updateInterval = 33; // 30 FPS pour éviter les saccades
+			updateInterval = 40; // 25 FPS plus stable
 			break;
 		case "Responsive":
-			updateInterval = 16; // 60 FPS max
+			updateInterval = 20; // 50 FPS
 			break;
 		default:
-			updateInterval = 20; // 50 FPS équilibré
+			updateInterval = 25; // 40 FPS équilibré
 			break;
 	}
 	
@@ -489,43 +495,39 @@ function sendColorsOptimized(shutdown = false)
 function processBatchUpdatesOptimized(changedLEDs)
 {
 	if(isProcessingQueue) {
+		// Ajouter les LEDs à la queue pour traitement ultérieur
+		pendingLEDs = pendingLEDs.concat(changedLEDs);
 		return;
 	}
 	
 	isProcessingQueue = true;
 	
 	try {
+		// Combiner les nouvelles LEDs avec celles en attente
+		const allLEDs = changedLEDs.concat(pendingLEDs);
+		pendingLEDs = [];
+		
 		// Limiter le nombre de LEDs traitées par frame pour éviter la surcharge
-		const maxLEDsPerFrame = (performanceMode === "Smooth") ? 8 : 
-								(performanceMode === "Responsive") ? 16 : 12;
+		const maxLEDsPerFrame = (performanceMode === "Smooth") ? 6 : 
+								(performanceMode === "Responsive") ? 12 : 8;
 		
-		const ledsToProcess = changedLEDs.slice(0, maxLEDsPerFrame);
+		const ledsToProcess = allLEDs.slice(0, maxLEDsPerFrame);
 		
+		// Traiter les LEDs une par une avec un espacement minimal
 		for(let i = 0; i < ledsToProcess.length; i++) {
 			const led = ledsToProcess[i];
 			sendSingleLEDOptimized(led.position, led.r, led.g, led.b);
-			
-			// Délai entre chaque LED pour éviter la surcharge du clavier
-			if(i < ledsToProcess.length - 1) {
-				// Petite pause pour laisser le clavier traiter
-				setTimeout(() => {}, 1);
-			}
 		}
 		
-		// Si il reste des LEDs à traiter, les programmer pour la prochaine frame
-		if(changedLEDs.length > maxLEDsPerFrame) {
-			const remainingLEDs = changedLEDs.slice(maxLEDsPerFrame);
-			setTimeout(() => {
-				isProcessingQueue = false;
-				processBatchUpdatesOptimized(remainingLEDs);
-			}, 5); // Délai de 5ms avant le prochain batch
-			return;
+		// Sauvegarder les LEDs restantes pour la prochaine frame
+		if(allLEDs.length > maxLEDsPerFrame) {
+			pendingLEDs = allLEDs.slice(maxLEDsPerFrame);
 		}
+		
+		frameCounter++;
 		
 	} finally {
-		setTimeout(() => {
-			isProcessingQueue = false;
-		}, 2); // Délai de 2ms avant de permettre le prochain traitement
+		isProcessingQueue = false;
 	}
 }
 
@@ -561,6 +563,8 @@ export function Shutdown()
 	lastColors = new Array(vKeys.length).fill(-1);
 	arraysChecked = true;
 	isProcessingQueue = false;
+	pendingLEDs = [];
+	frameCounter = 0;
 	
 	sendColorsOptimized(true);
 	device.log("✓ Périphérique ACE68 Air éteint");
