@@ -259,11 +259,16 @@ const boards =
 		],
 		vKeys: 
 		[
-			0, 6, 12, 18, 24, 30, 36, 42, 48, 54, 60, 66, 72, 78, 84,
-			1, 7, 13, 19, 25, 31, 37, 43, 49, 55, 61, 67, 73, 79, 85,
-			2, 8, 14, 20, 26, 32, 38, 44, 50, 56, 62, 68, 74, 86,
-			3, 9, 15, 21, 27, 33, 39, 45, 51, 57, 63, 69, 81,
-			4, 10, 16, 34, 52, 58, 64, 70, 76, 82
+			// Ligne 1: Esc, 1-0, -_, =+, Backspace, Delete (15 touches)
+			0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E,
+			// Ligne 2: Tab, Q-P, [, ], \, Page Up (15 touches) 
+			0x0F, 0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D,
+			// Ligne 3: CapsLock, A-L, ;, ', Enter, Page Down (14 touches)
+			0x1E, 0x1F, 0x20, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x29, 0x2A, 0x2B,
+			// Ligne 4: Left Shift, Z-/, Right Shift, Up Arrow (13 touches)
+			0x2C, 0x2D, 0x2E, 0x2F, 0x30, 0x31, 0x32, 0x33, 0x34, 0x35, 0x36, 0x37, 0x38,
+			// Ligne 5: Left Ctrl, Left Win, Left Alt, Space, Right Alt, Fn, Right Ctrl, Left Arrow, Down Arrow, Right Arrow (10 touches)
+			0x39, 0x3A, 0x3B, 0x3C, 0x3D, 0x3E, 0x3F, 0x40, 0x41, 0x42
 		],
 		vKeyPositions:  
 		[
@@ -378,23 +383,25 @@ export function Initialize()
 	device.setSize(boards[boardModel].size);
 	device.log(`✓ Modèle forcé: ${boards[boardModel].name} - ${vKeyNames.length} touches configurées`);
 	
-	// Séquence d'initialisation simplifiée pour ACE68 Air
-	device.log("[INIT] Séquence d'initialisation simplifiée...");
+	// Initialisation minimale - le protocole Python ne fait pas d'initialisation spéciale
+	device.log("[INIT] Initialisation minimale - utilisation du protocole Python direct");
 	
-	// Reset/Wake up
-	device.write([0x00, 0x00, 0x00, 0x00], 64);
-	device.pause(100);
+	// Optionnel: test d'une LED pour vérifier la communication
+	device.log("[INIT] Test de communication avec une LED...");
+	try {
+		sendSingleLED(0, 255, 0, 0); // LED 0 en rouge pour test
+		device.pause(200);
+		sendSingleLED(0, 0, 255, 0); // LED 0 en vert pour test
+		device.pause(200);
+		sendSingleLED(0, 0, 0, 255); // LED 0 en bleu pour test
+		device.pause(200);
+		sendSingleLED(0, 0, 0, 0);   // Éteindre la LED test
+		device.log("[INIT] ✓ Test de communication réussi");
+	} catch (error) {
+		device.log(`[INIT] ⚠ Test de communication échoué: ${error}`);
+	}
 	
-	// Set RGB mode
-	device.write([0x07, 0x01, 0x01, 0x00], 64);
-	device.pause(100);
-	
-	// Enable RGB
-	device.write([0xFF, 0x01, 0x00, 0x43], 64); // 0x43 = 67 keys
-	device.pause(100);
-	
-	device.log(`✓ Séquence d'initialisation simplifiée terminée`);
-	device.log(`[INIT] Initialisation terminée. boardModel = "${boardModel}"`);
+	device.log(`✓ Initialisation terminée. boardModel = "${boardModel}"`);
 }
 
 
@@ -414,73 +421,11 @@ export function Render()
 
 
 /*
-Get RGB
+Get RGB - Protocole basé sur le code Python fonctionnel
 */
 function sendColors(shutdown = false)
 {
-	let rgbdata = grabColors(shutdown);
-	
-	// Diagnostic: afficher les premières couleurs pour vérifier
-	if(rgbdata.length >= 9) {
-		device.log(`[DEBUG] Premiers pixels RGB: [${rgbdata[0]},${rgbdata[1]},${rgbdata[2]}] [${rgbdata[3]},${rgbdata[4]},${rgbdata[5]}] [${rgbdata[6]},${rgbdata[7]},${rgbdata[8]}]`);
-	}
-	
-	// Test avec un protocole ultra-simple - approche directe
-	device.log(`[DEBUG] Test protocole direct simple`);
-	
-	// Approche 1: Paquet RGB direct sans header complexe
-	let simplePacket = [0xFF, 0x00, 0x01]; // Magic header simple
-	
-	// Ajouter les données RGB directement (maximum 61 bytes)
-	for(let i = 0; i < Math.min(61, rgbdata.length); i++) {
-		simplePacket.push(rgbdata[i]);
-	}
-	
-	// Compléter à 64 bytes
-	while(simplePacket.length < 64) simplePacket.push(0x00);
-	
-	device.log(`[DEBUG] Test 1: Simple RGB packet`);
-	device.write(simplePacket, 64);
-	device.pause(50);
-	
-	// Approche 2: Pattern commun 0x07 pour RGB
-	let rgbPacket = [0x07, 0x01, 0x00, 0x43]; // 0x43 = 67 LEDs
-	
-	for(let i = 0; i < Math.min(60, rgbdata.length); i++) {
-		rgbPacket.push(rgbdata[i]);
-	}
-	
-	while(rgbPacket.length < 64) rgbPacket.push(0x00);
-	
-	device.log(`[DEBUG] Test 2: RGB packet avec header 0x07`);
-	device.write(rgbPacket, 64);
-	device.pause(50);
-	
-	// Approche 3: Pattern basé sur des claviers 65%
-	let packet65 = [0x02, 0x06, 0x43, 0x00]; // 0x43 = 67 keys
-	
-	for(let i = 0; i < Math.min(60, rgbdata.length); i++) {
-		packet65.push(rgbdata[i]);
-	}
-	
-	while(packet65.length < 64) packet65.push(0x00);
-	
-	device.log(`[DEBUG] Test 3: Pattern 65% keyboard`);
-	device.write(packet65, 64);
-	device.pause(50);
-	
-	// Commande de validation finale
-	device.write([0xFF, 0xFF, 0x00, 0x00], 64);
-	
-	device.log(`[DEBUG] Tests multiples terminés`);
-}
-
-function grabColors(shutdown = false) 
-{
-	// Initialize RGB data array with zeros - size based on actual number of keys
-	// Mchose ACE68 Air has 60 keys, so we need 60 * 3 = 180 bytes + some padding
-	let rgbdata = new Array(512).fill(0);
-
+	// Obtenir les couleurs pour chaque LED
 	for(let iIdx = 0; iIdx < vKeys.length; iIdx++)
 	{
 		let iPxX = vKeyPositions[iIdx][0];
@@ -500,21 +445,52 @@ function grabColors(shutdown = false)
 			color = device.color(iPxX, iPxY);
 		}
 
-		let iLedIdx = vKeys[iIdx] * 3;
-		// Ensure we don't exceed array bounds
-		if(iLedIdx + 2 < rgbdata.length) {
-			rgbdata[iLedIdx] = color[0];
-			rgbdata[iLedIdx+1] = color[1];
-			rgbdata[iLedIdx+2] = color[2];
-		}
+		// Envoyer la couleur pour cette LED spécifique
+		sendSingleLED(vKeys[iIdx], color[0], color[1], color[2]);
+		
+		// Pause minimale pour éviter la saturation du périphérique
+		// mais garder un débit acceptable
+		if(iIdx % 10 === 0) device.pause(1); // Pause tous les 10 LEDs seulement
 	}
+}
 
-	// Fill the rest with padding like other keyboards in the workspace
-	while(rgbdata.length < 512) {
-		rgbdata.push(0);
+function sendSingleLED(position, r, g, b)
+{
+	// Protocole exact du code Python qui fonctionne
+	// Format: "55 0B 00 {yy} 03 {position} 00 00 {r} {g} {b} ..."
+	
+	// Calculer yy en fonction de la position et de l'offset (comme dans le Python)
+	let offset = r + g + b + 3;
+	let yy = (position + offset) % 256;
+	
+	// Construire le paquet selon le format exact du Python
+	let packet = [
+		0x00,  // Premier byte toujours 0x00 comme dans le Python
+		0x55, 0x0B, 0x00, yy, 0x03, position, 0x00, 0x00, r, g, b
+	];
+	
+	// Compléter avec des zéros pour atteindre 64 bytes (comme dans le Python)
+	while(packet.length < 64) {
+		packet.push(0x00);
 	}
+	
+	// Envoyer le paquet
+	try {
+		device.write(packet, 64);
+	} catch (error) {
+		device.log(`[ERROR] Erreur lors de l'envoi de la LED ${position}: ${error}`);
+	}
+}
 
-	return rgbdata;
+export function Render() 
+{
+	if(!boardModel || boardModel !== "Mchose_ACE68_Air") {
+		device.log(`[ERROR] Modèle incorrect ou non initialisé. Expected: "Mchose_ACE68_Air", Got: "${boardModel}"`);
+		return;
+	}
+	
+	sendColors();
+	device.pause(20); // Pause optimisée pour de meilleures performances
 }
 
 export function Shutdown() 
@@ -529,14 +505,14 @@ export function Validate(endpoint)
 {
 	device.log(`[VALIDATE] Testing interface=${endpoint.interface}, usage=0x${endpoint.usage.toString(16).padStart(4, '0')}, usage_page=0x${endpoint.usage_page.toString(16).padStart(4, '0')}, collection=${endpoint.collection}`);
 	
-	// Pour Mchose ACE68 Air (VID:41E4 PID:2120): essayer l'interface 1 au lieu de 2
-	// Certains claviers Mchose utilisent l'interface 1 pour les rapports de sortie
-	if(endpoint.interface === 1) {
-		device.log("[VALIDATE] ✓ Interface 1 acceptée (Mchose ACE68 Air)");
+	// Pour Mchose ACE68 Air (VID:41E4 PID:2120): utiliser l'interface 1 avec usage 0x0000
+	// Ceci correspond exactement aux critères du code Python fonctionnel
+	if(endpoint.interface === 1 && endpoint.usage === 0x0000) {
+		device.log("[VALIDATE] ✓ Interface 1 avec usage 0x0000 acceptée (Mchose ACE68 Air - protocole Python)");
 		return true;
 	}
 	
 	// Pour les autres interfaces, rejeter pour éviter les conflits
-	device.log("[VALIDATE] ✗ Interface rejetée - seule l'interface 1 est supportée pour ce périphérique");
+	device.log("[VALIDATE] ✗ Interface rejetée - seule l'interface 1 avec usage 0x0000 est supportée pour ce périphérique");
 	return false;
 }
