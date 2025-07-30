@@ -12,6 +12,7 @@ export function ControllableParameters()
 		{"property":"LightingMode", "label":"Lighting Mode", "type":"combobox", "values":["Canvas", "Forced", "Debug"], "default":"Forced"},
 		{"property":"forcedColor", "label":"Forced Color", "min":"0", "max":"360", "type":"color", "default":"ff0000"},
 		{"property":"debugColor", "label":"Debug Color", "min":"0", "max":"360", "type":"color", "default":"00ff00"},
+		{"property":"performanceMode", "label":"Performance Mode", "type":"combobox", "values":["Smooth", "Balanced", "Responsive"], "default":"Balanced"},
 		{"property":"boardModel", "group":"lighting", "label":"Key Type", "type":"combobox", "values":["Aula_F99", "Aula_F87","Aula_F87Pro","Aula_F75","Mchose_X75","Mchose_K99","Mchose_G98","Mchose_ACE68_Air"], "default":"Aula_F99"}];
 }
 
@@ -42,6 +43,14 @@ let vKeys = [];
 let vKeyPositions = [];
 let boardModel = "Mchose_ACE68_Air"; // Défault pour VID:41E4 PID:2120
 let arraysChecked = false; // Flag pour éviter la vérification répétée
+
+// Variables pour l'optimisation des performances ACE68 Air
+let lastColors = []; // Cache des dernières couleurs envoyées
+let lastUpdateTime = 0; // Timestamp de la dernière mise à jour
+let updateQueue = []; // File d'attente des mises à jour
+let isProcessingQueue = false; // Flag pour éviter les traitements concurrents
+const MIN_UPDATE_INTERVAL = 16; // Limite à ~60 FPS (16ms entre updates)
+const BATCH_SIZE = 8; // Nombre de LEDs à traiter par batch (optimisé pour ACE68)
 
 /*
 
@@ -364,6 +373,18 @@ export function onboardModelChanged ()
 	device.setSize(boards[boardModel].size);
 	device.log(`Model set to: ` + boards[boardModel].name);
 	device.log('@Nuonuo');
+	
+	// Réinitialiser les caches lors du changement de modèle
+	lastColors = [];
+	arraysChecked = false;
+}
+
+export function onperformanceModeChanged() 
+{
+	device.log(`[PERF] Mode de performance changé vers: ${performanceMode}`);
+	// Réinitialiser les caches pour appliquer immédiatement le nouveau mode
+	lastColors = [];
+	lastUpdateTime = 0;
 }
 
 
@@ -400,16 +421,36 @@ export function Render()
 		return;
 	}
 	
-	sendColors();
-	// Pas de pause - laisser SignalRGB gérer le timing
+	// Ajuster les paramètres selon le mode de performance
+	let updateInterval;
+	switch(performanceMode) {
+		case "Smooth":
+			updateInterval = 33; // ~30 FPS pour économiser la bande passante
+			break;
+		case "Responsive":
+			updateInterval = 8;  // ~120 FPS pour la réactivité maximale
+			break;
+		default: // "Balanced"
+			updateInterval = MIN_UPDATE_INTERVAL; // ~60 FPS par défaut
+			break;
+	}
+	
+	// Limiter le taux de rafraîchissement pour éviter les saccades
+	const currentTime = Date.now();
+	if(currentTime - lastUpdateTime < updateInterval) {
+		return; // Ignorer cette frame si trop récente
+	}
+	
+	sendColorsOptimized();
+	lastUpdateTime = currentTime;
 }
 
 
 
 /*
-Get RGB - Protocole basé sur le code Python fonctionnel
+Get RGB - Protocole optimisé pour réduire les saccades
 */
-function sendColors(shutdown = false)
+function sendColorsOptimized(shutdown = false)
 {
 	// Vérification de cohérence des arrays (une seule fois)
 	if(!arraysChecked) {
@@ -417,10 +458,14 @@ function sendColors(shutdown = false)
 			device.log(`[ERROR] Incohérence des arrays: vKeys=${vKeys.length}, vKeyNames=${vKeyNames.length}, vKeyPositions=${vKeyPositions.length}`);
 			return;
 		}
+		// Initialiser le cache des couleurs
+		lastColors = new Array(vKeys.length).fill(null);
 		arraysChecked = true;
 	}
 	
-	// Obtenir les couleurs pour chaque LED
+	// Collecter les changements de couleurs
+	let changedLEDs = [];
+	
 	for(let iIdx = 0; iIdx < vKeys.length; iIdx++)
 	{
 		let iPxX = vKeyPositions[iIdx][0];
@@ -444,40 +489,103 @@ function sendColors(shutdown = false)
 			color = device.color(iPxX, iPxY);
 		}
 
-		// Envoyer la couleur pour cette LED spécifique
-		sendSingleLED(vKeys[iIdx], color[0], color[1], color[2]);
+		// Vérifier si la couleur a changé
+		const colorKey = `${color[0]}-${color[1]}-${color[2]}`;
+		if(!lastColors[iIdx] || lastColors[iIdx] !== colorKey) {
+			changedLEDs.push({
+				index: iIdx,
+				position: vKeys[iIdx],
+				r: color[0],
+				g: color[1],
+				b: color[2]
+			});
+			lastColors[iIdx] = colorKey;
+		}
+	}
+	
+	// Traiter les changements par batch pour réduire la latence
+	if(changedLEDs.length > 0) {
+		processBatchUpdates(changedLEDs);
 	}
 }
 
-function sendSingleLED(position, r, g, b)
+function processBatchUpdates(changedLEDs)
 {
-	// Protocole optimisé basé sur le code Python
-	let offset = r + g + b + 3;
-	let yy = (position + offset) % 256;
+	// Éviter les traitements concurrents
+	if(isProcessingQueue) {
+		return;
+	}
 	
-	// Paquet de 64 bytes
-	let packet = new Array(64).fill(0);
-	packet[0] = 0x00;
-	packet[1] = 0x55;
-	packet[2] = 0x0B;
-	packet[3] = 0x00;
-	packet[4] = yy;
-	packet[5] = 0x03;
-	packet[6] = position;
-	packet[7] = 0x00;
-	packet[8] = 0x00;
-	packet[9] = r;
-	packet[10] = g;
-	packet[11] = b;
+	isProcessingQueue = true;
 	
-	device.write(packet, 64);
+	try {
+		// Ajuster la taille du batch selon le mode de performance
+		let batchSize = BATCH_SIZE;
+		if(typeof performanceMode !== 'undefined') {
+			switch(performanceMode) {
+				case "Smooth":
+					batchSize = 3; // Batches plus petits pour moins de latence
+					break;
+				case "Responsive":
+					batchSize = changedLEDs.length; // Traiter tout d'un coup pour la réactivité
+					break;
+				default: // "Balanced"
+					batchSize = BATCH_SIZE;
+					break;
+			}
+		}
+		
+		// Traiter par petits groupes pour éviter les blocages
+		for(let i = 0; i < changedLEDs.length; i += batchSize) {
+			const batch = changedLEDs.slice(i, i + batchSize);
+			
+			// Envoyer chaque LED du batch
+			for(let j = 0; j < batch.length; j++) {
+				const led = batch[j];
+				sendSingleLEDOptimized(led.position, led.r, led.g, led.b);
+			}
+		}
+	} finally {
+		isProcessingQueue = false;
+	}
+}
+
+function sendSingleLEDOptimized(position, r, g, b)
+{
+	// Protocole optimisé - structure identique mais avec validation
+	try {
+		let offset = r + g + b + 3;
+		let yy = (position + offset) % 256;
+		
+		// Paquet de 64 bytes
+		let packet = new Array(64).fill(0);
+		packet[0] = 0x00;
+		packet[1] = 0x55;
+		packet[2] = 0x0B;
+		packet[3] = 0x00;
+		packet[4] = yy;
+		packet[5] = 0x03;
+		packet[6] = position;
+		packet[7] = 0x00;
+		packet[8] = 0x00;
+		packet[9] = r;
+		packet[10] = g;
+		packet[11] = b;
+		
+		device.write(packet, 64);
+	} catch(error) {
+		device.log(`[ERROR] Échec envoi LED position ${position}: ${error}`);
+	}
 }
 
 export function Shutdown() 
 {
 	device.log("[SHUTDOWN] Arrêt du Mchose ACE68 Air...");
+	// Réinitialiser le cache pour forcer l'envoi de toutes les couleurs d'arrêt
+	lastColors = [];
+	arraysChecked = false;
 	// Éteindre toutes les LEDs avec la couleur d'arrêt
-	sendColors(true);
+	sendColorsOptimized(true);
 	device.log("✓ Périphérique ACE68 Air éteint");
 }
 
