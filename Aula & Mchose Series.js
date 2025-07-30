@@ -252,21 +252,21 @@ const boards =
 		name: "Mchose ACE68 Air",
 		vKeyNames:      
 		[
-			"Esc", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-_", "=+", "Backspace", "Ins",
-			"Tab", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "[", "]", "\\", 'Del',
+			"Esc", "1", "2", "3", "4", "5", "6", "7", "8", "9", "0", "-_", "=+", "Backspace", "Insert",
+			"Tab", "Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P", "[", "]", "\\", 'Delete',
 			"CapsLock", "A", "S", "D", "F", "G", "H", "J", "K", "L", ";", "'", "Enter", "Page Up",
 			"Left Shift", "Z", "X", "C", "V", "B", "N", "M", ",", ".", "/", "Right Shift", "Up Arrow", "Page Down",
 			"Left Ctrl", "Left Win", "Left Alt", "Space", "Right Alt", "Fn", "Right Ctrl", "Left Arrow", "Down Arrow", "Right Arrow"
 		],
 		vKeys: 
 		[
-			// Ligne 1: Esc, 1-0, -_, =+, Backspace, Delete (15 touches)
+			// Ligne 1: Esc, 1-0, -_, =+, Backspace, Insert (15 touches)
 			0x96, 0x5A, 0x99, 0x7B, 0x5D, 0x9C, 0xD8, 0x60, 0x9F, 0xDB, 0x63, 0x09, 0xA2, 0x84, 0x66,
-			// Ligne 2: Tab, Q-P, [, ], \, Page Up (15 touches) 
+			// Ligne 2: Tab, Q-P, [, ], \, Delete (15 touches)
 			0xD2, 0x00, 0xD5, 0x03, 0x3F, 0x7E, 0x06, 0xBD, 0x81, 0x27, 0x45, 0xC0, 0xDE, 0x2A, 0x0C,
-			// Ligne 3: CapsLock, A-L, ;, ', Enter, Page Down (14 touches)
+			// Ligne 3: CapsLock, A-L, ;, ', Enter, Page Up (14 touches)
 			0xB4, 0x1E, 0xB7, 0x21, 0xBA, 0x24, 0x42, 0x8A, 0x4E, 0x8D, 0xC9, 0xE7, 0x90, 0x48,
-			// Ligne 4: Left Shift, Z-/, Right Shift, Up Arrow, End (14 touches)
+			// Ligne 4: Left Shift, Z-/, Right Shift, Up Arrow, Page Down (14 touches)
 			0x78, 0x3C, 0x4B, 0x2D, 0x0F, 0x69, 0xC6, 0xA8, 0x30, 0x12, 0xAB, 0x51, 0xCC, 0x54,
 			// Ligne 5: Left Ctrl, Left Win, Left Alt, Space, Right Alt, Fn, Right Ctrl, Left Arrow, Down Arrow, Right Arrow (10 touches)
 			0x87, 0xE1, 0xA5, 0xE4, 0x6C, 0x15, 0x6F, 0xAE, 0xEA, 0x36
@@ -504,17 +504,6 @@ function sendSingleLED(position, r, g, b)
 	} catch (error) {
 		device.log(`[ERROR] Erreur lors de l'envoi de la LED ${position}: ${error}`);
 	}
-}
-
-export function Render() 
-{
-	if(!boardModel || boardModel !== "Mchose_ACE68_Air") {
-		device.log(`[ERROR] Modèle incorrect ou non initialisé. Expected: "Mchose_ACE68_Air", Got: "${boardModel}"`);
-		return;
-	}
-	
-	sendColors();
-	device.pause(20); // Pause optimisée pour de meilleures performances
 }
 
 export function Shutdown() 
