@@ -413,15 +413,13 @@ export function Initialize()
 
 export function Render() 
 {
-	device.log(`[RENDER] boardModel = "${boardModel}"`);
-	
 	if(!boardModel || boardModel !== "Mchose_ACE68_Air") {
 		device.log(`[ERROR] Modèle incorrect ou non initialisé. Expected: "Mchose_ACE68_Air", Got: "${boardModel}"`);
 		return;
 	}
 	
 	sendColors();
-	device.pause(100); // Augmenter la pause pour limiter la fréquence
+	device.pause(16); // ~60 FPS au lieu de 10 FPS
 }
 
 
@@ -431,15 +429,13 @@ Get RGB - Protocole basé sur le code Python fonctionnel
 */
 function sendColors(shutdown = false)
 {
-	// Vérification de cohérence des arrays
+	// Vérification de cohérence des arrays (seulement une fois par session)
 	if(vKeys.length !== vKeyNames.length || vKeys.length !== vKeyPositions.length) {
 		device.log(`[ERROR] Incohérence des arrays: vKeys=${vKeys.length}, vKeyNames=${vKeyNames.length}, vKeyPositions=${vKeyPositions.length}`);
 		return;
 	}
 	
-	device.log(`[INFO] Envoi de ${vKeys.length} LEDs en mode ${LightingMode}`);
-
-	// Obtenir les couleurs pour chaque LED
+	// Obtenir les couleurs pour chaque LED (pas de log répétitif)
 	for(let iIdx = 0; iIdx < vKeys.length; iIdx++)
 	{
 		let iPxX = vKeyPositions[iIdx][0];
@@ -456,7 +452,6 @@ function sendColors(shutdown = false)
 		}
 		else if (LightingMode === "Debug")
 		{
-			// Mode debug: toutes les LEDs en vert pour vérifier le mapping
 			color = hexToRgb(debugColor);
 		}
 		else
@@ -464,17 +459,8 @@ function sendColors(shutdown = false)
 			color = device.color(iPxX, iPxY);
 		}
 
-		// Debug pour les premières LEDs
-		if(iIdx < 5) {
-			device.log(`[DEBUG] LED ${iIdx}: ${vKeyNames[iIdx]} pos(${iPxX},${iPxY}) -> vKey[0x${vKeys[iIdx].toString(16).toUpperCase()}] -> RGB(${color[0]},${color[1]},${color[2]})`);
-		}
-
-		// Envoyer la couleur pour cette LED spécifique
+		// Envoyer la couleur pour cette LED spécifique (sans pause)
 		sendSingleLED(vKeys[iIdx], color[0], color[1], color[2]);
-		
-		// Pause minimale pour éviter la saturation du périphérique
-		// mais garder un débit acceptable
-		if(iIdx % 10 === 0) device.pause(1); // Pause tous les 10 LEDs seulement
 	}
 }
 
