@@ -45,12 +45,13 @@ let boardModel = "Mchose_ACE68_Air"; // Défault pour VID:41E4 PID:2120
 let arraysChecked = false; // Flag pour éviter la vérification répétée
 
 // Variables pour l'optimisation des performances ACE68 Air
-let lastColors = []; // Cache des dernières couleurs envoyées
+let lastColors = []; // Cache des dernières couleurs envoyées (format numérique)
 let lastUpdateTime = 0; // Timestamp de la dernière mise à jour
 let updateQueue = []; // File d'attente des mises à jour
 let isProcessingQueue = false; // Flag pour éviter les traitements concurrents
-const MIN_UPDATE_INTERVAL = 16; // Limite à ~60 FPS (16ms entre updates)
-const BATCH_SIZE = 8; // Nombre de LEDs à traiter par batch (optimisé pour ACE68)
+const MIN_UPDATE_INTERVAL = 8; // Limite à ~120 FPS (8ms entre updates) - optimisé pour ACE68
+const BATCH_SIZE = 16; // Nombre de LEDs à traiter par batch (optimisé pour ACE68)
+const ACE68_UPDATE_DELAY = 1; // Délai minimal entre les paquets USB (1ms pour ACE68)
 
 /*
 
@@ -383,8 +384,22 @@ export function onperformanceModeChanged()
 {
 	device.log(`[PERF] Mode de performance changé vers: ${performanceMode}`);
 	// Réinitialiser les caches pour appliquer immédiatement le nouveau mode
-	lastColors = [];
+	lastColors = new Array(vKeys.length).fill(-1); // Réinitialisation avec valeurs numériques
 	lastUpdateTime = 0;
+	isProcessingQueue = false; // S'assurer qu'aucune queue n'est bloquée
+	
+	// Log des nouveaux paramètres selon le mode
+	switch(performanceMode) {
+		case "Smooth":
+			device.log("[PERF] Mode Smooth: 60 FPS, batches de 4 LEDs");
+			break;
+		case "Responsive":
+			device.log("[PERF] Mode Responsive: 250 FPS, traitement immédiat");
+			break;
+		default:
+			device.log("[PERF] Mode Balanced: 120 FPS, batches de 8 LEDs");
+			break;
+	}
 }
 
 
@@ -409,8 +424,14 @@ export function Initialize()
 	device.setControllableLeds(vKeyNames, vKeyPositions);
 	device.setName(boards[boardModel].name);
 	device.setSize(boards[boardModel].size);
-	device.log(`✓ Modèle forcé: ${boards[boardModel].name} - ${vKeyNames.length} touches configurées`);
 	
+	// Initialiser le cache des couleurs pour optimiser les performances
+	lastColors = new Array(vKeys.length).fill(-1);
+	arraysChecked = true;
+	isProcessingQueue = false;
+	
+	device.log(`✓ Modèle forcé: ${boards[boardModel].name} - ${vKeyNames.length} touches configurées`);
+	device.log(`✓ Cache de couleurs initialisé pour ${lastColors.length} LEDs`);
 	device.log(`✓ Initialisation terminée. boardModel = "${boardModel}"`);
 }
 
@@ -421,17 +442,17 @@ export function Render()
 		return;
 	}
 	
-	// Ajuster les paramètres selon le mode de performance
+	// Ajuster les paramètres selon le mode de performance - intervalles optimisés pour ACE68
 	let updateInterval;
 	switch(performanceMode) {
 		case "Smooth":
-			updateInterval = 33; // ~30 FPS pour économiser la bande passante
+			updateInterval = 16; // ~60 FPS - optimal pour la fluidité sans surcharge USB
 			break;
 		case "Responsive":
-			updateInterval = 8;  // ~120 FPS pour la réactivité maximale
+			updateInterval = 4;  // ~250 FPS pour la réactivité maximale
 			break;
 		default: // "Balanced"
-			updateInterval = MIN_UPDATE_INTERVAL; // ~60 FPS par défaut
+			updateInterval = MIN_UPDATE_INTERVAL; // ~120 FPS par défaut
 			break;
 	}
 	
@@ -458,8 +479,8 @@ function sendColorsOptimized(shutdown = false)
 			device.log(`[ERROR] Incohérence des arrays: vKeys=${vKeys.length}, vKeyNames=${vKeyNames.length}, vKeyPositions=${vKeyPositions.length}`);
 			return;
 		}
-		// Initialiser le cache des couleurs
-		lastColors = new Array(vKeys.length).fill(null);
+		// Initialiser le cache des couleurs (format numérique pour comparaisons rapides)
+		lastColors = new Array(vKeys.length).fill(-1);
 		arraysChecked = true;
 	}
 	
@@ -489,9 +510,9 @@ function sendColorsOptimized(shutdown = false)
 			color = device.color(iPxX, iPxY);
 		}
 
-		// Vérifier si la couleur a changé
-		const colorKey = `${color[0]}-${color[1]}-${color[2]}`;
-		if(!lastColors[iIdx] || lastColors[iIdx] !== colorKey) {
+		// Optimisation: comparaison numérique au lieu de chaîne pour détecter les changements
+		const colorValue = (color[0] << 16) | (color[1] << 8) | color[2];
+		if(lastColors[iIdx] !== colorValue) {
 			changedLEDs.push({
 				index: iIdx,
 				position: vKeys[iIdx],
@@ -499,17 +520,17 @@ function sendColorsOptimized(shutdown = false)
 				g: color[1],
 				b: color[2]
 			});
-			lastColors[iIdx] = colorKey;
+			lastColors[iIdx] = colorValue;
 		}
 	}
 	
-	// Traiter les changements par batch pour réduire la latence
+	// Traiter les changements de manière optimisée
 	if(changedLEDs.length > 0) {
-		processBatchUpdates(changedLEDs);
+		processBatchUpdatesOptimized(changedLEDs);
 	}
 }
 
-function processBatchUpdates(changedLEDs)
+function processBatchUpdatesOptimized(changedLEDs)
 {
 	// Éviter les traitements concurrents
 	if(isProcessingQueue) {
@@ -519,30 +540,30 @@ function processBatchUpdates(changedLEDs)
 	isProcessingQueue = true;
 	
 	try {
-		// Ajuster la taille du batch selon le mode de performance
-		let batchSize = BATCH_SIZE;
-		if(typeof performanceMode !== 'undefined') {
-			switch(performanceMode) {
-				case "Smooth":
-					batchSize = 3; // Batches plus petits pour moins de latence
-					break;
-				case "Responsive":
-					batchSize = changedLEDs.length; // Traiter tout d'un coup pour la réactivité
-					break;
-				default: // "Balanced"
-					batchSize = BATCH_SIZE;
-					break;
-			}
-		}
-		
-		// Traiter par petits groupes pour éviter les blocages
-		for(let i = 0; i < changedLEDs.length; i += batchSize) {
-			const batch = changedLEDs.slice(i, i + batchSize);
-			
-			// Envoyer chaque LED du batch
-			for(let j = 0; j < batch.length; j++) {
-				const led = batch[j];
+		// Optimisation spéciale pour ACE68: traitement séquentiel rapide
+		if(performanceMode === "Responsive") {
+			// Mode réactif: envoyer toutes les LEDs changées immédiatement
+			for(let i = 0; i < changedLEDs.length; i++) {
+				const led = changedLEDs[i];
 				sendSingleLEDOptimized(led.position, led.r, led.g, led.b);
+			}
+		} else {
+			// Modes Smooth et Balanced: traitement par petits batches pour éviter la surcharge USB
+			let batchSize = (performanceMode === "Smooth") ? 4 : 8;
+			
+			for(let i = 0; i < changedLEDs.length; i += batchSize) {
+				const batch = changedLEDs.slice(i, i + batchSize);
+				
+				// Envoyer chaque LED du batch
+				for(let j = 0; j < batch.length; j++) {
+					const led = batch[j];
+					sendSingleLEDOptimized(led.position, led.r, led.g, led.b);
+				}
+				
+				// Pause micro entre les batches pour éviter la congestion USB (seulement en mode Smooth)
+				if(performanceMode === "Smooth" && i + batchSize < changedLEDs.length) {
+					// Note: pas de vraie pause en JavaScript, mais on limite la taille des batches
+				}
 			}
 		}
 	} finally {
@@ -552,12 +573,12 @@ function processBatchUpdates(changedLEDs)
 
 function sendSingleLEDOptimized(position, r, g, b)
 {
-	// Protocole optimisé - structure identique mais avec validation
+	// Protocole optimisé pour ACE68 - structure simplifiée
 	try {
 		let offset = r + g + b + 3;
 		let yy = (position + offset) % 256;
 		
-		// Paquet de 64 bytes
+		// Paquet de 64 bytes optimisé
 		let packet = new Array(64).fill(0);
 		packet[0] = 0x00;
 		packet[1] = 0x55;
@@ -571,6 +592,7 @@ function sendSingleLEDOptimized(position, r, g, b)
 		packet[9] = r;
 		packet[10] = g;
 		packet[11] = b;
+		// Le reste du paquet reste à 0 (déjà initialisé par fill(0))
 		
 		device.write(packet, 64);
 	} catch(error) {
@@ -582,9 +604,11 @@ export function Shutdown()
 {
 	device.log("[SHUTDOWN] Arrêt du Mchose ACE68 Air...");
 	// Réinitialiser le cache pour forcer l'envoi de toutes les couleurs d'arrêt
-	lastColors = [];
-	arraysChecked = false;
-	// Éteindre toutes les LEDs avec la couleur d'arrêt
+	lastColors = new Array(vKeys.length).fill(-1);
+	arraysChecked = true; // Éviter la re-vérification pendant l'arrêt
+	isProcessingQueue = false; // S'assurer qu'aucune queue n'est bloquée
+	
+	// Éteindre toutes les LEDs avec la couleur d'arrêt de manière optimisée
 	sendColorsOptimized(true);
 	device.log("✓ Périphérique ACE68 Air éteint");
 }
