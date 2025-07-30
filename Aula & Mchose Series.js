@@ -279,8 +279,8 @@ const boards =
 			[0, 1], [1, 1], [2, 1], [3, 1], [4, 1], [5, 1], [6, 1], [7, 1], [8, 1], [9, 1], [10, 1], [11, 1], [12, 1], [13, 1], [14, 1],
 			// Ligne 3 (14 touches): CapsLock à Page Down (pas de touche en position [13, 2])
 			[0, 2], [1, 2], [2, 2], [3, 2], [4, 2], [5, 2], [6, 2], [7, 2], [8, 2], [9, 2], [10, 2], [11, 2], [12, 2], [14, 2],
-			// Ligne 4 (13 touches): Left Shift à Up Arrow (pas de touche en position [12, 3])
-			[0, 3], [1, 3], [2, 3], [3, 3], [4, 3], [5, 3], [6, 3], [7, 3], [8, 3], [9, 3], [10, 3], [11, 3], [13, 3],
+			// Ligne 4 (14 touches): Left Shift à Up Arrow et End (pas de touche en position [12, 3])
+			[0, 3], [1, 3], [2, 3], [3, 3], [4, 3], [5, 3], [6, 3], [7, 3], [8, 3], [9, 3], [10, 3], [11, 3], [13, 3], [15, 3],
 			// Ligne 5 (10 touches): modifiers et arrows (espace plus large, gaps entre)
 			[0, 4], [1, 4], [2, 4], [6, 4], [10, 4], [11, 4], [12, 4], [13, 4], [14, 4], [15, 4]
 		],
