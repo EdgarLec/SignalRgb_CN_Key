@@ -41,6 +41,7 @@ let vKeyNames = [];
 let vKeys = [];
 let vKeyPositions = [];
 let boardModel = "Mchose_ACE68_Air"; // Défault pour VID:41E4 PID:2120
+let arraysChecked = false; // Flag pour éviter la vérification répétée
 
 /*
 
@@ -389,24 +390,6 @@ export function Initialize()
 	device.setSize(boards[boardModel].size);
 	device.log(`✓ Modèle forcé: ${boards[boardModel].name} - ${vKeyNames.length} touches configurées`);
 	
-	// Initialisation minimale - le protocole Python ne fait pas d'initialisation spéciale
-	device.log("[INIT] Initialisation minimale - utilisation du protocole Python direct");
-	
-	// Optionnel: test d'une LED pour vérifier la communication
-	device.log("[INIT] Test de communication avec une LED...");
-	try {
-		sendSingleLED(0, 255, 0, 0); // LED 0 en rouge pour test
-		device.pause(200);
-		sendSingleLED(0, 0, 255, 0); // LED 0 en vert pour test
-		device.pause(200);
-		sendSingleLED(0, 0, 0, 255); // LED 0 en bleu pour test
-		device.pause(200);
-		sendSingleLED(0, 0, 0, 0);   // Éteindre la LED test
-		device.log("[INIT] ✓ Test de communication réussi");
-	} catch (error) {
-		device.log(`[INIT] ⚠ Test de communication échoué: ${error}`);
-	}
-	
 	device.log(`✓ Initialisation terminée. boardModel = "${boardModel}"`);
 }
 
@@ -414,12 +397,11 @@ export function Initialize()
 export function Render() 
 {
 	if(!boardModel || boardModel !== "Mchose_ACE68_Air") {
-		device.log(`[ERROR] Modèle incorrect ou non initialisé. Expected: "Mchose_ACE68_Air", Got: "${boardModel}"`);
 		return;
 	}
 	
 	sendColors();
-	device.pause(16); // ~60 FPS au lieu de 10 FPS
+	// Pas de pause - laisser SignalRGB gérer le timing
 }
 
 
@@ -429,13 +411,16 @@ Get RGB - Protocole basé sur le code Python fonctionnel
 */
 function sendColors(shutdown = false)
 {
-	// Vérification de cohérence des arrays (seulement une fois par session)
-	if(vKeys.length !== vKeyNames.length || vKeys.length !== vKeyPositions.length) {
-		device.log(`[ERROR] Incohérence des arrays: vKeys=${vKeys.length}, vKeyNames=${vKeyNames.length}, vKeyPositions=${vKeyPositions.length}`);
-		return;
+	// Vérification de cohérence des arrays (une seule fois)
+	if(!arraysChecked) {
+		if(vKeys.length !== vKeyNames.length || vKeys.length !== vKeyPositions.length) {
+			device.log(`[ERROR] Incohérence des arrays: vKeys=${vKeys.length}, vKeyNames=${vKeyNames.length}, vKeyPositions=${vKeyPositions.length}`);
+			return;
+		}
+		arraysChecked = true;
 	}
 	
-	// Obtenir les couleurs pour chaque LED (pas de log répétitif)
+	// Obtenir les couleurs pour chaque LED
 	for(let iIdx = 0; iIdx < vKeys.length; iIdx++)
 	{
 		let iPxX = vKeyPositions[iIdx][0];
@@ -459,37 +444,33 @@ function sendColors(shutdown = false)
 			color = device.color(iPxX, iPxY);
 		}
 
-		// Envoyer la couleur pour cette LED spécifique (sans pause)
+		// Envoyer la couleur pour cette LED spécifique
 		sendSingleLED(vKeys[iIdx], color[0], color[1], color[2]);
 	}
 }
 
 function sendSingleLED(position, r, g, b)
 {
-	// Protocole exact du code Python qui fonctionne
-	// Format: "55 0B 00 {yy} 03 {position} 00 00 {r} {g} {b} ..."
-	
-	// Calculer yy en fonction de la position et de l'offset (comme dans le Python)
+	// Protocole optimisé basé sur le code Python
 	let offset = r + g + b + 3;
 	let yy = (position + offset) % 256;
 	
-	// Construire le paquet selon le format exact du Python
-	let packet = [
-		0x00,  // Premier byte toujours 0x00 comme dans le Python
-		0x55, 0x0B, 0x00, yy, 0x03, position, 0x00, 0x00, r, g, b
-	];
+	// Paquet de 64 bytes
+	let packet = new Array(64).fill(0);
+	packet[0] = 0x00;
+	packet[1] = 0x55;
+	packet[2] = 0x0B;
+	packet[3] = 0x00;
+	packet[4] = yy;
+	packet[5] = 0x03;
+	packet[6] = position;
+	packet[7] = 0x00;
+	packet[8] = 0x00;
+	packet[9] = r;
+	packet[10] = g;
+	packet[11] = b;
 	
-	// Compléter avec des zéros pour atteindre 64 bytes (comme dans le Python)
-	while(packet.length < 64) {
-		packet.push(0x00);
-	}
-	
-	// Envoyer le paquet
-	try {
-		device.write(packet, 64);
-	} catch (error) {
-		device.log(`[ERROR] Erreur lors de l'envoi de la LED ${position}: ${error}`);
-	}
+	device.write(packet, 64);
 }
 
 export function Shutdown() 
