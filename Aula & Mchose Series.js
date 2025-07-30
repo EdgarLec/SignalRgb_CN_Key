@@ -22,37 +22,17 @@ Author: Nollie(Nuonuo)
 Version:V1.0
 */
 
-/* 
-Time:2025/1/13
-Author: Skikdd(随机复读的复读姬)
-Version:V1.1
-log:添加Aula F75灯珠名字
-log:修复Aula F87&F87_Pro灯珠
-log:修复Aula F99灯珠位置错误和不亮
-*/
-
-/* 
-Time:2025/1/29
-Author: GitHub Copilot
-Version:V1.2
-log:添加Mchose ACE68 Air支持
-*/
 
 let vKeyNames = [];
 let vKeys = [];
 let vKeyPositions = [];
-let boardModel = "Mchose_ACE68_Air"; // Défault pour VID:41E4 PID:2120
-let arraysChecked = false; // Flag pour éviter la vérification répétée
+let boardModel = "Mchose_ACE68_Air";
+let arraysChecked = false;
 
-// Variables pour l'optimisation des performances ACE68 Air
-let lastColors = []; // Cache des dernières couleurs envoyées (format numérique)
-let lastUpdateTime = 0; // Timestamp de la dernière mise à jour
-let updateQueue = []; // File d'attente des mises à jour
-let isProcessingQueue = false; // Flag pour éviter les traitements concurrents
-const MIN_UPDATE_INTERVAL = 8; // Limite à ~120 FPS (8ms entre updates) - optimisé pour ACE68
-const BATCH_SIZE = 16; // Nombre de LEDs à traiter par batch (optimisé pour ACE68)
-const ACE68_UPDATE_DELAY = 1; // Délai minimal entre les paquets USB (1ms pour ACE68)
-
+let lastColors = [];
+let lastUpdateTime = 0;
+let isProcessingQueue = false;
+const MIN_UPDATE_INTERVAL = 16; // Réduit la fréquence de 125fps à 60fps
 /*
 
 */
@@ -271,35 +251,24 @@ const boards =
 		],
 		vKeys: 
 		[
-			// Ligne 1: Esc, 1-0, -_, =+, Backspace, Insert (15 touches)
 			0x96, 0x5A, 0x99, 0x7B, 0x5D, 0x9C, 0xD8, 0x60, 0x9F, 0xDB, 0x63, 0x09, 0xA2, 0x84, 0x66,
-			// Ligne 2: Tab, Q-P, [, ], \, Delete (15 touches)
 			0xD2, 0x00, 0xD5, 0x03, 0x3F, 0x7E, 0x06, 0xBD, 0x81, 0x27, 0x45, 0xC0, 0xDE, 0x2A, 0x0C,
-			// Ligne 3: CapsLock, A-L, ;, ', Enter, Page Up (14 touches)
 			0xB4, 0x1E, 0xB7, 0x21, 0xBA, 0x24, 0x42, 0x8A, 0x4E, 0x8D, 0xC9, 0xE7, 0x90, 0x48,
-			// Ligne 4: Left Shift, Z-/, Right Shift, Up Arrow, Page Down (14 touches)
 			0x78, 0x3C, 0x4B, 0x2D, 0x0F, 0x69, 0xC6, 0xA8, 0x30, 0x12, 0xAB, 0x51, 0xCC, 0x54,
-			// Ligne 5: Left Ctrl, Left Win, Left Alt, Space, Right Alt, Fn, Right Ctrl, Left Arrow, Down Arrow, Right Arrow (10 touches)
 			0x87, 0xE1, 0xA5, 0xE4, 0x6C, 0x15, 0x6F, 0xAE, 0xEA, 0x36
 		],
 		vKeyPositions:  
 		[
-			// Ligne 1 (15 touches): Esc à Delete
 			[0, 0], [1, 0], [2, 0], [3, 0], [4, 0], [5, 0], [6, 0], [7, 0], [8, 0], [9, 0], [10, 0], [11, 0], [12, 0], [13, 0], [14, 0],
-			// Ligne 2 (15 touches): Tab à Page Up  
 			[0, 1], [1, 1], [2, 1], [3, 1], [4, 1], [5, 1], [6, 1], [7, 1], [8, 1], [9, 1], [10, 1], [11, 1], [12, 1], [13, 1], [14, 1],
-			// Ligne 3 (14 touches): CapsLock à Page Down (pas de touche en position [13, 2])
 			[0, 2], [1, 2], [2, 2], [3, 2], [4, 2], [5, 2], [6, 2], [7, 2], [8, 2], [9, 2], [10, 2], [11, 2], [12, 2], [14, 2],
-			// Ligne 4 (14 touches): Left Shift à Up Arrow et End (pas de touche en position [12, 3])
 			[0, 3], [1, 3], [2, 3], [3, 3], [4, 3], [5, 3], [6, 3], [7, 3], [8, 3], [9, 3], [10, 3], [11, 3], [13, 3], [15, 3],
-			// Ligne 5 (10 touches): modifiers et arrows (espace plus large, gaps entre)
 			[0, 4], [1, 4], [2, 4], [6, 4], [10, 4], [11, 4], [12, 4], [13, 4], [14, 4], [15, 4]
 		],
 		size: 			[16, 5]
 	},
 };
 
-// Initialisation par défaut pour Mchose ACE68 Air (VID:41E4 PID:2120)
 vKeyNames = boards["Mchose_ACE68_Air"].vKeyNames;
 vKeyPositions = boards["Mchose_ACE68_Air"].vKeyPositions;
 vKeys = boards["Mchose_ACE68_Air"].vKeys;
@@ -375,7 +344,6 @@ export function onboardModelChanged ()
 	device.log(`Model set to: ` + boards[boardModel].name);
 	device.log('@Nuonuo');
 	
-	// Réinitialiser les caches lors du changement de modèle
 	lastColors = [];
 	arraysChecked = false;
 }
@@ -383,21 +351,19 @@ export function onboardModelChanged ()
 export function onperformanceModeChanged() 
 {
 	device.log(`[PERF] Mode de performance changé vers: ${performanceMode}`);
-	// Réinitialiser les caches pour appliquer immédiatement le nouveau mode
-	lastColors = new Array(vKeys.length).fill(-1); // Réinitialisation avec valeurs numériques
+	lastColors = new Array(vKeys.length).fill(-1);
 	lastUpdateTime = 0;
-	isProcessingQueue = false; // S'assurer qu'aucune queue n'est bloquée
+	isProcessingQueue = false;
 	
-	// Log des nouveaux paramètres selon le mode
 	switch(performanceMode) {
 		case "Smooth":
-			device.log("[PERF] Mode Smooth: 60 FPS, batches de 4 LEDs");
+			device.log("[PERF] Mode Smooth: 30 FPS, max 8 LEDs/frame pour stabilité");
 			break;
 		case "Responsive":
-			device.log("[PERF] Mode Responsive: 250 FPS, traitement immédiat");
+			device.log("[PERF] Mode Responsive: 60 FPS, max 16 LEDs/frame");
 			break;
 		default:
-			device.log("[PERF] Mode Balanced: 120 FPS, batches de 8 LEDs");
+			device.log("[PERF] Mode Balanced: 50 FPS, max 12 LEDs/frame");
 			break;
 	}
 }
@@ -407,11 +373,9 @@ export function Initialize()
 {
 	device.log("[INIT] Début d'initialisation Mchose ACE68 Air (VID:41E4 PID:2120)");
 	
-	// Forcer le modèle Mchose ACE68 Air pour ce VID/PID
 	boardModel = "Mchose_ACE68_Air";
 	device.log(`[INIT] boardModel défini à: "${boardModel}"`);
 	
-	// Vérifier que la configuration existe
 	if(!boards[boardModel]) {
 		device.log(`[INIT ERROR] Configuration non trouvée pour: ${boardModel}`);
 		return;
@@ -425,7 +389,6 @@ export function Initialize()
 	device.setName(boards[boardModel].name);
 	device.setSize(boards[boardModel].size);
 	
-	// Initialiser le cache des couleurs pour optimiser les performances
 	lastColors = new Array(vKeys.length).fill(-1);
 	arraysChecked = true;
 	isProcessingQueue = false;
@@ -442,24 +405,22 @@ export function Render()
 		return;
 	}
 	
-	// Ajuster les paramètres selon le mode de performance - intervalles optimisés pour ACE68
 	let updateInterval;
 	switch(performanceMode) {
 		case "Smooth":
-			updateInterval = 16; // ~60 FPS - optimal pour la fluidité sans surcharge USB
+			updateInterval = 33; // 30 FPS pour éviter les saccades
 			break;
 		case "Responsive":
-			updateInterval = 4;  // ~250 FPS pour la réactivité maximale
+			updateInterval = 16; // 60 FPS max
 			break;
-		default: // "Balanced"
-			updateInterval = MIN_UPDATE_INTERVAL; // ~120 FPS par défaut
+		default:
+			updateInterval = 20; // 50 FPS équilibré
 			break;
 	}
 	
-	// Limiter le taux de rafraîchissement pour éviter les saccades
 	const currentTime = Date.now();
 	if(currentTime - lastUpdateTime < updateInterval) {
-		return; // Ignorer cette frame si trop récente
+		return;
 	}
 	
 	sendColorsOptimized();
@@ -469,22 +430,19 @@ export function Render()
 
 
 /*
-Get RGB - Protocole optimisé pour réduire les saccades
+Get RGB
 */
 function sendColorsOptimized(shutdown = false)
 {
-	// Vérification de cohérence des arrays (une seule fois)
 	if(!arraysChecked) {
 		if(vKeys.length !== vKeyNames.length || vKeys.length !== vKeyPositions.length) {
 			device.log(`[ERROR] Incohérence des arrays: vKeys=${vKeys.length}, vKeyNames=${vKeyNames.length}, vKeyPositions=${vKeyPositions.length}`);
 			return;
 		}
-		// Initialiser le cache des couleurs (format numérique pour comparaisons rapides)
 		lastColors = new Array(vKeys.length).fill(-1);
 		arraysChecked = true;
 	}
 	
-	// Collecter les changements de couleurs
 	let changedLEDs = [];
 	
 	for(let iIdx = 0; iIdx < vKeys.length; iIdx++)
@@ -510,7 +468,6 @@ function sendColorsOptimized(shutdown = false)
 			color = device.color(iPxX, iPxY);
 		}
 
-		// Optimisation: comparaison numérique au lieu de chaîne pour détecter les changements
 		const colorValue = (color[0] << 16) | (color[1] << 8) | color[2];
 		if(lastColors[iIdx] !== colorValue) {
 			changedLEDs.push({
@@ -524,7 +481,6 @@ function sendColorsOptimized(shutdown = false)
 		}
 	}
 	
-	// Traiter les changements de manière optimisée
 	if(changedLEDs.length > 0) {
 		processBatchUpdatesOptimized(changedLEDs);
 	}
@@ -532,7 +488,6 @@ function sendColorsOptimized(shutdown = false)
 
 function processBatchUpdatesOptimized(changedLEDs)
 {
-	// Éviter les traitements concurrents
 	if(isProcessingQueue) {
 		return;
 	}
@@ -540,45 +495,46 @@ function processBatchUpdatesOptimized(changedLEDs)
 	isProcessingQueue = true;
 	
 	try {
-		// Optimisation spéciale pour ACE68: traitement séquentiel rapide
-		if(performanceMode === "Responsive") {
-			// Mode réactif: envoyer toutes les LEDs changées immédiatement
-			for(let i = 0; i < changedLEDs.length; i++) {
-				const led = changedLEDs[i];
-				sendSingleLEDOptimized(led.position, led.r, led.g, led.b);
-			}
-		} else {
-			// Modes Smooth et Balanced: traitement par petits batches pour éviter la surcharge USB
-			let batchSize = (performanceMode === "Smooth") ? 4 : 8;
+		// Limiter le nombre de LEDs traitées par frame pour éviter la surcharge
+		const maxLEDsPerFrame = (performanceMode === "Smooth") ? 8 : 
+								(performanceMode === "Responsive") ? 16 : 12;
+		
+		const ledsToProcess = changedLEDs.slice(0, maxLEDsPerFrame);
+		
+		for(let i = 0; i < ledsToProcess.length; i++) {
+			const led = ledsToProcess[i];
+			sendSingleLEDOptimized(led.position, led.r, led.g, led.b);
 			
-			for(let i = 0; i < changedLEDs.length; i += batchSize) {
-				const batch = changedLEDs.slice(i, i + batchSize);
-				
-				// Envoyer chaque LED du batch
-				for(let j = 0; j < batch.length; j++) {
-					const led = batch[j];
-					sendSingleLEDOptimized(led.position, led.r, led.g, led.b);
-				}
-				
-				// Pause micro entre les batches pour éviter la congestion USB (seulement en mode Smooth)
-				if(performanceMode === "Smooth" && i + batchSize < changedLEDs.length) {
-					// Note: pas de vraie pause en JavaScript, mais on limite la taille des batches
-				}
+			// Délai entre chaque LED pour éviter la surcharge du clavier
+			if(i < ledsToProcess.length - 1) {
+				// Petite pause pour laisser le clavier traiter
+				setTimeout(() => {}, 1);
 			}
 		}
+		
+		// Si il reste des LEDs à traiter, les programmer pour la prochaine frame
+		if(changedLEDs.length > maxLEDsPerFrame) {
+			const remainingLEDs = changedLEDs.slice(maxLEDsPerFrame);
+			setTimeout(() => {
+				isProcessingQueue = false;
+				processBatchUpdatesOptimized(remainingLEDs);
+			}, 5); // Délai de 5ms avant le prochain batch
+			return;
+		}
+		
 	} finally {
-		isProcessingQueue = false;
+		setTimeout(() => {
+			isProcessingQueue = false;
+		}, 2); // Délai de 2ms avant de permettre le prochain traitement
 	}
 }
 
 function sendSingleLEDOptimized(position, r, g, b)
 {
-	// Protocole optimisé pour ACE68 - structure simplifiée
 	try {
 		let offset = r + g + b + 3;
 		let yy = (position + offset) % 256;
 		
-		// Paquet de 64 bytes optimisé
 		let packet = new Array(64).fill(0);
 		packet[0] = 0x00;
 		packet[1] = 0x55;
@@ -592,7 +548,6 @@ function sendSingleLEDOptimized(position, r, g, b)
 		packet[9] = r;
 		packet[10] = g;
 		packet[11] = b;
-		// Le reste du paquet reste à 0 (déjà initialisé par fill(0))
 		
 		device.write(packet, 64);
 	} catch(error) {
@@ -603,12 +558,10 @@ function sendSingleLEDOptimized(position, r, g, b)
 export function Shutdown() 
 {
 	device.log("[SHUTDOWN] Arrêt du Mchose ACE68 Air...");
-	// Réinitialiser le cache pour forcer l'envoi de toutes les couleurs d'arrêt
 	lastColors = new Array(vKeys.length).fill(-1);
-	arraysChecked = true; // Éviter la re-vérification pendant l'arrêt
-	isProcessingQueue = false; // S'assurer qu'aucune queue n'est bloquée
+	arraysChecked = true;
+	isProcessingQueue = false;
 	
-	// Éteindre toutes les LEDs avec la couleur d'arrêt de manière optimisée
 	sendColorsOptimized(true);
 	device.log("✓ Périphérique ACE68 Air éteint");
 }
@@ -617,14 +570,11 @@ export function Validate(endpoint)
 {
 	device.log(`[VALIDATE] Testing interface=${endpoint.interface}, usage=0x${endpoint.usage.toString(16).padStart(4, '0')}, usage_page=0x${endpoint.usage_page.toString(16).padStart(4, '0')}, collection=${endpoint.collection}`);
 	
-	// Pour Mchose ACE68 Air (VID:41E4 PID:2120): utiliser l'interface 1 avec usage 0x0000
-	// Ceci correspond exactement aux critères du code Python fonctionnel
 	if(endpoint.interface === 1 && endpoint.usage === 0x0000) {
 		device.log("[VALIDATE] ✓ Interface 1 avec usage 0x0000 acceptée (Mchose ACE68 Air - protocole Python)");
 		return true;
 	}
 	
-	// Pour les autres interfaces, rejeter pour éviter les conflits
 	device.log("[VALIDATE] ✗ Interface rejetée - seule l'interface 1 avec usage 0x0000 est supportée pour ce périphérique");
 	return false;
 }
